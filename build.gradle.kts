@@ -83,6 +83,19 @@ dependencies {
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.6.1")
 }
+afterEvaluate {
+    publishing {
+        publications {
+            release(MavenPublication) {
+                from components.release
+
+                        groupId = 'com.github.T1H2H0'
+                artifactId = 'firebaselogin'
+                version = '1.0'
+            }
+        }
+    }
+}
 //publishing {
 //    publications {
 //        create<MavenPublication>("mavenJava") {
