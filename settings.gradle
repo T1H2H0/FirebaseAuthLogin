@@ -15,4 +15,5 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "FirebaseAuthLogin"
-include ':firebaseauthlogin'
+//include ':firebaseauthlogin'
+include ':firebaselogin'
