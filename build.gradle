@@ -1,0 +1,10 @@
+// Remove any repository declarations from this file
+buildscript {
+    dependencies {
+        classpath 'com.android.tools.build:gradle:8.1.2'
+    }
+}
+
+plugins {
+    id 'com.android.library' version '8.1.2' apply false
+}
