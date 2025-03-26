@@ -56,9 +56,36 @@ import androidx.compose.ui.window.Dialog
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.uwonham.firebaselogin.utils.SignInResult
-
-
 private const val TAG = "FirebaseLoginComposable"
+/**
+ * Displays a Firebase sign-in dialog.
+ *
+ * @param auth The Firebase authentication instance.
+ * @param image An optional [ImageBitmap] to display in the dialog.
+ * @param onDismiss Callback function triggered when the dialog is dismissed.
+ * @param onSignInSuccess Callback function triggered when sign-in is successful, providing the signed-in [FirebaseUser].
+ *
+ * ### Example Usage:
+ * ```
+ * val showSignInDialog = remember { mutableStateOf(true) }
+ * Button(onClick = { showSignInDialog.value = !showSignInDialog.value }) {
+ *     Text(text = "Login")
+ * }
+ *
+ * if (showSignInDialog.value) {
+ *     FirebaseSignInDialog(
+ *         auth = auth,
+ *         image = imageBitmap,
+ *         onDismiss = { showSignInDialog.value = false },
+ *         onSignInSuccess = { user ->
+ *             Log.d(TAG, "Login successful: $user")
+ *             viewModel.userLoggedIn(user)
+ *         }
+ *     )
+ * }
+ * ```
+ */
+
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun FirebaseSignInDialog(
@@ -66,8 +93,9 @@ fun FirebaseSignInDialog(
     image:  ImageBitmap?,
     onDismiss: () -> Unit,
     onSignInSuccess: (user: com.google.firebase.auth.FirebaseUser) -> Unit,
-    viewModel: LoginViewModel = hiltViewModel()
+
 ) {
+    val viewModel: LoginViewModel = hiltViewModel()
     val state by viewModel.state.collectAsStateWithLifecycle()
     val focusManager = LocalFocusManager.current
     val autofill = LocalAutofill.current
