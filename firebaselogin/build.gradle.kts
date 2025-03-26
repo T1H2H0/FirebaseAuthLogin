@@ -86,9 +86,9 @@ afterEvaluate {
         publications {
             create<MavenPublication>("mavenJava") {
                 from(components["release"])
-                groupId = "com.github.T1H2H0"
+                groupId = "com.t1h2h0"
                 artifactId = "firebaselogin"
-                version = "1.0.2"
+                version = "1.0.4"
             }
         }
     }
