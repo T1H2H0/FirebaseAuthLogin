@@ -176,5 +176,30 @@ fun setAuth(auth: com.google.firebase.auth.FirebaseAuth) {
         Log.d(TAG, "checkForSavedCredentials:  $hasSavedCredentials")
 
     }
+    fun sendPasswordResetEmail(activity: Activity) {
+        // Clear previous error
+        _state.update { it.copy(errorMessage = null, isLoading = true) }
+
+        _state.value.auth?.sendPasswordResetEmail(state.value.email)
+            ?.addOnCompleteListener { task ->
+                if (task.isSuccessful) {
+                    // Password reset email sent successfully
+                    _state.update {
+                        it.copy(
+                            errorMessage = "Password reset email sent. Check your inbox.",
+                            isLoading = false
+                        )
+                    }
+                } else {
+                    // If sending email fails
+                    _state.update {
+                        it.copy(
+                            errorMessage = task.exception?.message ?: "Failed to send reset email",
+                            isLoading = false
+                        )
+                    }
+                }
+            }
+    }
 
 }

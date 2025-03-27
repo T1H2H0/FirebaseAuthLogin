@@ -90,10 +90,9 @@ private const val TAG = "FirebaseLoginComposable"
 @Composable
 fun FirebaseSignInDialog(
     auth: com.google.firebase.auth.FirebaseAuth,
-    image:  ImageBitmap?,
+    image: ImageBitmap?,
     onDismiss: () -> Unit,
     onSignInSuccess: (user: com.google.firebase.auth.FirebaseUser) -> Unit,
-
 ) {
     val viewModel: LoginViewModel = hiltViewModel()
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -101,7 +100,9 @@ fun FirebaseSignInDialog(
     val autofill = LocalAutofill.current
     val context = LocalContext.current
     val activity = context as? Activity
-    // Handle saved credentials prompt
+
+    // Track whether forgot password flow is active
+    var isForgotPasswordMode by remember { mutableStateOf(false) }
 
     LaunchedEffect(true) {
         viewModel.setAuth(auth)
@@ -109,20 +110,8 @@ fun FirebaseSignInDialog(
         viewModel.signInResult.observeForever { result ->
             when (result) {
                 is SignInResult.Error -> {}
-                SignInResult.Loading -> {
-                }
-
+                SignInResult.Loading -> {}
                 is SignInResult.Success -> onSignInSuccess(result.user!!)
-            }
-        }
-    }
-    LaunchedEffect(state.useSavedCredentials) {
-        if (state.useSavedCredentials) {
-            Log.d(TAG, "SignInDialog: ${state.useSavedCredentials}")
-            if (activity != null) {
-                viewModel.loadSavedCredentials(activity)
-            } else {
-                Log.e("LoginScreen", "Activity context is null")
             }
         }
     }
@@ -140,6 +129,7 @@ fun FirebaseSignInDialog(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
+                // Title and Logo
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -151,168 +141,168 @@ fun FirebaseSignInDialog(
                         horizontalArrangement = Arrangement.Start
                     ) {
                         image?.let {
-                        Image(
-                            modifier = Modifier.size(100.dp),
-                            bitmap = it,
-                            contentDescription = "Logo"
-                        )
-                    } }
+                            Image(
+                                modifier = Modifier.size(100.dp),
+                                bitmap = it,
+                                contentDescription = "Logo"
+                            )
+                        }
+                    }
 
                     Text(
-                        text = "Sign In",
+                        text = if (isForgotPasswordMode) "Reset Password" else "Sign In",
                         style = MaterialTheme.typography.headlineSmall,
                         modifier = Modifier.align(Alignment.Center)
                     )
                 }
-                // "Use saved password" option
-                if (state.useSavedCredentials && state.email.isEmpty()) {
-                    Button(
-                        onClick = { activity?.let { viewModel.loadSavedCredentials(it) } },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text("Use Saved Password")
-                    }
 
+                // Conditional content based on forgot password mode
+                if (isForgotPasswordMode) {
+                    // Forgot Password Flow
                     Text(
-                        text = "Or sign in with another account",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-
-                // Email/Username Field with Autofill
-                val emailAutofillNode = remember {
-                    AutofillNode(
-                        autofillTypes = listOf(AutofillType.EmailAddress, AutofillType.Username),
-                        onFill = { viewModel.updateEmail(it) }
-                    )
-                }
-
-                OutlinedTextField(
-                    value = state.email,
-                    onValueChange = { viewModel.updateEmail(it) },
-                    label = { Text("Email") },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(
-                        keyboardType = KeyboardType.Email,
-                        imeAction = ImeAction.Next
-                    ),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .onGloballyPositioned { coordinates ->
-                            // Update the autofill node's bounds
-                            emailAutofillNode.boundingBox = coordinates.boundsInWindow()
-                        }
-                        .onFocusChanged { focusState ->
-                            if (focusState.isFocused) {
-                                autofill?.requestAutofillForNode(emailAutofillNode)
-                            } else {
-                                autofill?.cancelAutofillForNode(emailAutofillNode)
-                            }
-                        }
-                )
-
-                // Password Field with Autofill
-                var passwordVisible by remember { mutableStateOf(false) }
-
-                val passwordAutofillNode = remember {
-                    AutofillNode(
-                        autofillTypes = listOf(AutofillType.Password),
-                        onFill = { viewModel.updatePassword(it) }
-                    )
-                }
-
-                OutlinedTextField(
-                    value = state.password,
-                    onValueChange = { viewModel.updatePassword(it) },
-                    label = { Text("Password") },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(
-                        keyboardType = KeyboardType.Password,
-                        imeAction = ImeAction.Done
-                    ),
-                    visualTransformation = if (passwordVisible)
-                        VisualTransformation.None
-                    else
-                        PasswordVisualTransformation(),
-                    trailingIcon = {
-                        IconButton(onClick = { passwordVisible = !passwordVisible }) {
-                            Icon(
-                                imageVector = if (passwordVisible)
-                                    androidx.compose.material.icons.Icons.Default.Visibility
-                                else
-                                    androidx.compose.material.icons.Icons.Default.VisibilityOff,
-                                contentDescription = if (passwordVisible) "Hide password" else "Show password"
-                            )
-                        }
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .onGloballyPositioned { coordinates ->
-                            // Update the autofill node's bounds
-                            passwordAutofillNode.boundingBox = coordinates.boundsInWindow()
-                        }
-                        .onFocusChanged { focusState ->
-                            if (focusState.isFocused) {
-                                autofill?.requestAutofillForNode(passwordAutofillNode)
-                            } else {
-                                autofill?.cancelAutofillForNode(passwordAutofillNode)
-                            }
-                        }
-                )
-
-                // Remember me checkbox
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    var rememberCredentials =
-                        Checkbox(
-                            checked = state.rememberCredentials,
-                            onCheckedChange = { viewModel.setRememberCredentials(it) }
-                        )
-                    Text(
-                        text = "Remember me",
+                        text = "Enter your email to reset your password",
                         style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.padding(start = 8.dp)
+                        modifier = Modifier.padding(bottom = 8.dp)
                     )
-                }
 
-                if (state.errorMessage != null) {
-                    Text(
-                        text = state.errorMessage!!,
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodySmall
+                    OutlinedTextField(
+                        value = state.email,
+                        onValueChange = { viewModel.updateEmail(it) },
+                        label = { Text("Email") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Email,
+                            imeAction = ImeAction.Done
+                        ),
+                        modifier = Modifier.fillMaxWidth()
                     )
-                }
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    TextButton(
-                        onClick = onDismiss,
-                        modifier = Modifier.padding(end = 8.dp)
-                    ) {
-                        Text("Cancel")
+                    // Error or Success Message
+                    if (state.errorMessage != null) {
+                        Text(
+                            text = state.errorMessage!!,
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall
+                        )
                     }
 
-                    Button(
-                        onClick = {
-activity?.let { viewModel.signIn(it) }
-                            // Here you would check for a successful sign-in before calling onSignInSuccess
-
-                        },
-                        enabled = !state.isLoading && state.email.isNotBlank() && state.password.isNotBlank()
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        if (state.isLoading) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(24.dp),
-                                strokeWidth = 2.dp
-                            )
-                        } else {
-                            Text("Sign In")
+                        TextButton(onClick = { isForgotPasswordMode = false }) {
+                            Text("Back to Sign In")
+                        }
+
+                        Button(
+                            onClick = {
+                                activity?.let {
+                                    viewModel.sendPasswordResetEmail(it)
+                                }
+                            },
+                            enabled = !state.isLoading && state.email.isNotBlank()
+                        ) {
+                            if (state.isLoading) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(24.dp),
+                                    strokeWidth = 2.dp
+                                )
+                            } else {
+                                Text("Reset Password")
+                            }
+                        }
+                    }
+                } else {
+                    // Regular Sign In Flow
+                    // [Keep existing email and password fields from previous implementation]
+                    // Email Field
+                    OutlinedTextField(
+                        value = state.email,
+                        onValueChange = { viewModel.updateEmail(it) },
+                        label = { Text("Email") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Email,
+                            imeAction = ImeAction.Next
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    // Password Field
+                    var passwordVisible by remember { mutableStateOf(false) }
+                    OutlinedTextField(
+                        value = state.password,
+                        onValueChange = { viewModel.updatePassword(it) },
+                        label = { Text("Password") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Password,
+                            imeAction = ImeAction.Done
+                        ),
+                        visualTransformation = if (passwordVisible)
+                            VisualTransformation.None
+                        else
+                            PasswordVisualTransformation(),
+                        trailingIcon = {
+                            IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                                Icon(
+                                    imageVector = if (passwordVisible)
+                                        androidx.compose.material.icons.Icons.Default.Visibility
+                                    else
+                                        androidx.compose.material.icons.Icons.Default.VisibilityOff,
+                                    contentDescription = if (passwordVisible) "Hide password" else "Show password"
+                                )
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    // Forgot Password Link
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End
+                    ) {
+                        TextButton(onClick = { isForgotPasswordMode = true }) {
+                            Text("Forgot Password?")
+                        }
+                    }
+
+                    // Error Message
+                    if (state.errorMessage != null) {
+                        Text(
+                            text = state.errorMessage!!,
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+
+                    // Sign In Buttons
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        TextButton(
+                            onClick = onDismiss,
+                            modifier = Modifier.padding(end = 8.dp)
+                        ) {
+                            Text("Cancel")
+                        }
+
+                        Button(
+                            onClick = {
+                                activity?.let { viewModel.signIn(it) }
+                            },
+                            enabled = !state.isLoading && state.email.isNotBlank() && state.password.isNotBlank()
+                        ) {
+                            if (state.isLoading) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(24.dp),
+                                    strokeWidth = 2.dp
+                                )
+                            } else {
+                                Text("Sign In")
+                            }
                         }
                     }
                 }
