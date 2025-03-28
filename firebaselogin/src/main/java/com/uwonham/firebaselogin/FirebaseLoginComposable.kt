@@ -254,9 +254,27 @@ fun FirebaseSignInDialog(
                                 )
                             }
                         },
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier
+                            .fillMaxWidth()
+
                     )
 
+                    // Remember me checkbox
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        var rememberCredentials =
+                            Checkbox(
+                                checked = state.rememberCredentials,
+                                onCheckedChange = { viewModel.setRememberCredentials(it) }
+                            )
+                        Text(
+                            text = "Remember me",
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.padding(start = 8.dp)
+                        )
+                    }
                     // Forgot Password Link
                     Row(
                         modifier = Modifier.fillMaxWidth(),
