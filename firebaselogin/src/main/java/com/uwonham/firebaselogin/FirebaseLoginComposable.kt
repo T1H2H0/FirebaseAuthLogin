@@ -115,7 +115,16 @@ fun FirebaseSignInDialog(
             }
         }
     }
-
+    LaunchedEffect(state.useSavedCredentials) {
+        if (state.useSavedCredentials) {
+            Log.d(TAG, "SignInDialog: ${state.useSavedCredentials}")
+            if (activity != null) {
+                viewModel.loadSavedCredentials(activity)
+            } else {
+                Log.e("LoginScreen", "Activity context is null")
+            }
+        }
+    }
     Dialog(onDismissRequest = onDismiss) {
         Card(
             modifier = Modifier
