@@ -56,12 +56,15 @@ import androidx.compose.ui.window.Dialog
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.uwonham.firebaselogin.utils.SignInResult
+
 private const val TAG = "FirebaseLoginComposable"
+
 /**
- * Displays a Firebase sign-in dialog.
+ * Displays a Firebase sign-in dialog with conditional user creation based on email domain.
  *
  * @param auth The Firebase authentication instance.
  * @param image An optional [ImageBitmap] to display in the dialog.
+ * @param allowedEmailDomain The email domain required for user creation (e.g., "@company.com").
  * @param onDismiss Callback function triggered when the dialog is dismissed.
  * @param onSignInSuccess Callback function triggered when sign-in is successful, providing the signed-in [FirebaseUser].
  *
@@ -76,6 +79,7 @@ private const val TAG = "FirebaseLoginComposable"
  *     FirebaseSignInDialog(
  *         auth = auth,
  *         image = imageBitmap,
+ *         allowedEmailDomain = "@company.com",
  *         onDismiss = { showSignInDialog.value = false },
  *         onSignInSuccess = { user ->
  *             Log.d(TAG, "Login successful: $user")
@@ -91,6 +95,7 @@ private const val TAG = "FirebaseLoginComposable"
 fun FirebaseSignInDialog(
     auth: com.google.firebase.auth.FirebaseAuth,
     image: ImageBitmap?,
+    allowedEmailDomain: String = "", // New parameter for domain validation
     onDismiss: () -> Unit,
     onSignInSuccess: (user: com.google.firebase.auth.FirebaseUser) -> Unit,
 ) {
@@ -104,8 +109,15 @@ fun FirebaseSignInDialog(
     // Track whether forgot password flow is active
     var isForgotPasswordMode by remember { mutableStateOf(false) }
 
+    // Track email domain validation
+    var showDomainWarning by remember { mutableStateOf(false) }
+
     LaunchedEffect(true) {
         viewModel.setAuth(auth)
+        // Set the allowed email domain for user creation
+        if (allowedEmailDomain.isNotEmpty()) {
+            viewModel.setAllowedEmailDomain(allowedEmailDomain)
+        }
         viewModel.checkForSavedCredentials()
         viewModel.signInResult.observeForever { result ->
             when (result) {
@@ -115,6 +127,7 @@ fun FirebaseSignInDialog(
             }
         }
     }
+
     LaunchedEffect(state.useSavedCredentials) {
         if (state.useSavedCredentials) {
             Log.d(TAG, "SignInDialog: ${state.useSavedCredentials}")
@@ -125,6 +138,16 @@ fun FirebaseSignInDialog(
             }
         }
     }
+
+    // Check email domain when email changes
+    LaunchedEffect(state.email) {
+        if (allowedEmailDomain.isNotEmpty() && state.email.isNotEmpty()) {
+            showDomainWarning = !state.email.endsWith(allowedEmailDomain)
+        } else {
+            showDomainWarning = false
+        }
+    }
+
     Dialog(onDismissRequest = onDismiss) {
         Card(
             modifier = Modifier
@@ -165,6 +188,15 @@ fun FirebaseSignInDialog(
                     )
                 }
 
+                // Domain requirement info (if applicable)
+                if (allowedEmailDomain.isNotEmpty() && !isForgotPasswordMode) {
+                    Text(
+                        text = "User accounts will be created for emails ending with: $allowedEmailDomain",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
                 // Conditional content based on forgot password mode
                 if (isForgotPasswordMode) {
                     // Forgot Password Flow
@@ -190,7 +222,10 @@ fun FirebaseSignInDialog(
                     if (state.errorMessage != null) {
                         Text(
                             text = state.errorMessage!!,
-                            color = MaterialTheme.colorScheme.error,
+                            color = if (state.errorMessage!!.contains("sent"))
+                                MaterialTheme.colorScheme.primary
+                            else
+                                MaterialTheme.colorScheme.error,
                             style = MaterialTheme.typography.bodySmall
                         )
                     }
@@ -223,7 +258,6 @@ fun FirebaseSignInDialog(
                     }
                 } else {
                     // Regular Sign In Flow
-                    // [Keep existing email and password fields from previous implementation]
                     // Email Field
                     OutlinedTextField(
                         value = state.email,
@@ -234,8 +268,19 @@ fun FirebaseSignInDialog(
                             keyboardType = KeyboardType.Email,
                             imeAction = ImeAction.Next
                         ),
+                        isError = showDomainWarning,
                         modifier = Modifier.fillMaxWidth()
                     )
+
+                    // Domain warning message
+                    if (showDomainWarning && allowedEmailDomain.isNotEmpty()) {
+                        Text(
+                            text = "Note: User account will only be created for emails ending with $allowedEmailDomain",
+                            color = MaterialTheme.colorScheme.secondary,
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
 
                     // Password Field
                     var passwordVisible by remember { mutableStateOf(false) }
@@ -263,9 +308,7 @@ fun FirebaseSignInDialog(
                                 )
                             }
                         },
-                        modifier = Modifier
-                            .fillMaxWidth()
-
+                        modifier = Modifier.fillMaxWidth()
                     )
 
                     // Remember me checkbox
@@ -273,17 +316,17 @@ fun FirebaseSignInDialog(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        var rememberCredentials =
-                            Checkbox(
-                                checked = state.rememberCredentials,
-                                onCheckedChange = { viewModel.setRememberCredentials(it) }
-                            )
+                        Checkbox(
+                            checked = state.rememberCredentials,
+                            onCheckedChange = { viewModel.setRememberCredentials(it) }
+                        )
                         Text(
                             text = "Remember me",
                             style = MaterialTheme.typography.bodyMedium,
                             modifier = Modifier.padding(start = 8.dp)
                         )
                     }
+
                     // Forgot Password Link
                     Row(
                         modifier = Modifier.fillMaxWidth(),

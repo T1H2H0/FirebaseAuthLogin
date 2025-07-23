@@ -28,6 +28,32 @@ class Login : ComponentActivity() {
 //                onSignInSuccess = { user ->
 //                Log. d(TAG, "Login successful: $user")
 //                viewModel. userLoggedIn(user)         }     )
+            // In your Activity or Fragment
+//            val showSignInDialog = remember { mutableStateOf(true) }
+//
+//            if (showSignInDialog.value) {
+//                FirebaseSignInDialog(
+//                    auth = auth,
+//                    image = imageBitmap,
+//                    allowedEmailDomain = "@company.com", // Only emails ending with @company.com will create user accounts
+//                    onDismiss = { showSignInDialog.value = false },
+//                    onSignInSuccess = { user ->
+//                        Log.d(TAG, "Login successful: $user")
+//                        // User account automatically created in Firestore if email matches domain
+//                        viewModel.userLoggedIn(user)
+//                    }
+//                )
+//            }
+
+
+//            rules_version = '2';
+//            service cloud.firestore {
+//                match /databases/{database}/documents {
+//                    match /Users/{userId} {
+//                        allow read, write: if request.auth != null && request.auth.token.email == userId;
+//                    }
+//                }
+//            }
         }
         }
 
