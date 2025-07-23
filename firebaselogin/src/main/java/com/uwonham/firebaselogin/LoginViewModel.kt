@@ -79,7 +79,7 @@ class LoginViewModel @Inject constructor(
     }
 
     // FIXED: Create account function with proper error handling and validation
-    fun createAccount(activity: Activity, userData: UserData) {
+    fun createAccount( userData: UserData) {
         Log.d(TAG, "createAccount: Starting account creation for ${userData.email}")
 
         // Validate inputs
@@ -135,6 +135,12 @@ class LoginViewModel @Inject constructor(
                         try {
                             user.updateProfile(profileUpdates).await()
                             Log.d(TAG, "User profile updated successfully")
+                            val ascBuilder = com.google.firebase.auth.ActionCodeSettings.newBuilder()
+                            ascBuilder.setAndroidPackageName("com.uwonham.library", true, null)
+                            ascBuilder.setHandleCodeInApp(true)
+                                .build()
+                            val asc = ascBuilder.build()
+                            _state.value.auth!!.sendSignInLinkToEmail(userData.email,asc)
                         } catch (e: Exception) {
                             Log.w(TAG, "Failed to update user profile: ${e.message}")
                             // Don't fail the entire operation for profile update failure

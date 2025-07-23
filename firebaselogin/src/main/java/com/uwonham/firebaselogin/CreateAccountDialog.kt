@@ -447,7 +447,7 @@ fun CreateAccountDialog(
 
                     Button(
                         onClick = {
-                            if (activity != null && isFormValid()) {
+                            if (isFormValid()) {
                                 Log.d(TAG, "Creating account for: $email")
 
                                 // FIXED: Include password in UserData
@@ -465,7 +465,7 @@ fun CreateAccountDialog(
                                     deactive = false
                                 )
 
-                                viewModel.createAccount(activity, userData)
+                                viewModel.createAccount( userData)
                             } else {
                                 Log.w(TAG, "Form validation failed or activity is null")
                             }
