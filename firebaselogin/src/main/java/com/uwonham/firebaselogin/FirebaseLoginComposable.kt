@@ -3,6 +3,7 @@ package com.uwonham.firebaselogin
 import android.app.Activity
 import android.graphics.Bitmap
 import android.util.Log
+import android.widget.Toast
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -111,7 +112,7 @@ fun FirebaseSignInDialog(
 
     // Track email domain validation
     var showDomainWarning by remember { mutableStateOf(false) }
-
+var showCreateDialog = remember { mutableStateOf(false) }
     LaunchedEffect(true) {
         viewModel.setAuth(auth)
         // Set the allowed email domain for user creation
@@ -280,8 +281,13 @@ fun FirebaseSignInDialog(
                             style = MaterialTheme.typography.bodySmall,
                             modifier = Modifier.fillMaxWidth()
                         )
+                        Button(onClick = { showCreateDialog.value = true }) {
+                            Text("Create Account")
+                        }
                     }
-
+if (showCreateDialog.value) {
+    CreateAccountDialog(auth = auth, image = image, allowedEmailDomain = allowedEmailDomain, onDismiss = { showCreateDialog.value = false }, onAccountCreated = { user -> Toast.makeText(context, "Account created: $user", Toast.LENGTH_SHORT).show() })
+}
                     // Password Field
                     var passwordVisible by remember { mutableStateOf(false) }
                     OutlinedTextField(

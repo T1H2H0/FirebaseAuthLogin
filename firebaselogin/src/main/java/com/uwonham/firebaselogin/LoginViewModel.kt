@@ -33,10 +33,10 @@ private const val TAG = "LibraryLoginViewModel"
 data class UserData(
     val email: String = "",
     val engineerNumber: String = "",
-    val country:String = "GB",
+    val country: String = "GB",
     val name: String = "",
     val photo: String = "",
-    val phonenumber:String = "",
+    val phonenumber: String = "",
     val asm: String = "",
     val role: String = "NEWUSER",
     val deActivated: Boolean? = false,
@@ -60,6 +60,10 @@ class LoginViewModel @Inject constructor(
     // Add allowed domain property
     private var allowedEmailDomain: String = ""
 
+    // Add create account result
+    private val _createAccountResult = MutableLiveData<SignInResult>()
+    val createAccountResult: LiveData<SignInResult> get() = _createAccountResult
+
     init {
         Log.d(TAG, "init:${sampleString} ")
     }
@@ -70,6 +74,56 @@ class LoginViewModel @Inject constructor(
 
     fun setAllowedEmailDomain(domain: String) {
         allowedEmailDomain = domain
+    }
+
+    fun createAccount(activity: Activity, userData: UserData) {
+        if (!shouldCreateUser(userData.email)) {
+            _createAccountResult.postValue(SignInResult.Error("Email domain not allowed for account creation"))
+            return
+        }
+
+        _state.update { it.copy(isLoading = true, errorMessage = null) }
+        viewModelScope.launch {
+            try {
+                _createAccountResult.postValue(SignInResult.Loading)
+
+                // Create Firebase Auth user
+                _state.value.auth?.createUserWithEmailAndPassword(userData.email, _state.value.password)
+                    ?.addOnSuccessListener { authResult ->
+                        val user = authResult.user
+                        if (user != null) {
+                            // Update display name if provided
+                            if (userData.name.isNotEmpty()) {
+                                val profileUpdates = com.google.firebase.auth.UserProfileChangeRequest.Builder()
+                                    .setDisplayName(userData.name)
+                                    .build()
+
+                                user.updateProfile(profileUpdates)
+                                    .addOnCompleteListener { profileTask ->
+                                        if (profileTask.isSuccessful) {
+                                            Log.d(TAG, "User profile updated")
+                                        }
+                                    }
+                            }
+
+                            // Create Firestore user document
+                            viewModelScope.launch {
+                                createFirestoreUser(user, userData)
+                                _state.update { it.copy(isLoading = false) }
+                                _createAccountResult.postValue(SignInResult.Success(user = user))
+                            }
+                        }
+                    }
+                    ?.addOnFailureListener { error ->
+                        _state.update { it.copy(isLoading = false, errorMessage = error.message) }
+                        _createAccountResult.postValue(SignInResult.Error(error.message ?: "Account creation failed"))
+                    }
+
+            } catch (e: Exception) {
+                _state.update { it.copy(isLoading = false) }
+                _createAccountResult.postValue(SignInResult.Error(e.message ?: "Unknown error"))
+            }
+        }
     }
 
     fun updateEmail(email: String) {
@@ -132,6 +186,35 @@ class LoginViewModel @Inject constructor(
                 email.endsWith(allowedEmailDomain)
     }
 
+    private suspend fun createFirestoreUser(user: FirebaseUser, userData: UserData) {
+        try {
+            val userEmail = user.email ?: return
+
+            // Ensure we're authenticated before accessing Firestore
+            if (_state.value.auth?.currentUser == null) {
+                Log.w(TAG, "User not authenticated, cannot create Firestore document")
+                return
+            }
+
+            val userDocRef = firestore.collection("Users").document(userEmail)
+
+            // Create user document with provided data
+            val finalUserData = userData.copy(
+                email = userEmail,
+                photo = if (userData.photo.isEmpty()) generateAutoPhoto(userEmail) else userData.photo
+            )
+
+            userDocRef.set(finalUserData).await()
+            Log.d(TAG, "User document created for: $userEmail")
+
+        } catch (e: Exception) {
+            Log.e(TAG, "Error creating user document: ${e.message}")
+            if (e.message?.contains("PERMISSION_DENIED") == true) {
+                Log.e(TAG, "Permission denied - check Firebase security rules")
+            }
+        }
+    }
+
     private suspend fun createUserIfNotExists(user: FirebaseUser) {
         try {
             val userEmail = user.email ?: return
@@ -148,15 +231,18 @@ class LoginViewModel @Inject constructor(
             val docSnapshot = userDocRef.get().await()
 
             if (!docSnapshot.exists()) {
-                // Create new user document
+                // Create new user document with updated structure
                 val userData = UserData(
                     email = userEmail,
-                    deActivated =false,
                     engineerNumber = "", // You can set this based on your logic
+                    country = "GB",
                     name = user.displayName ?: "", // Get from Firebase Auth if available
                     photo = generateAutoPhoto(userEmail), // Auto-generate if empty
+                    phonenumber = "",
                     asm = "", // Set based on your requirements
-                    role = "newuser"
+                    role = "NEWUSER",
+                    deActivated = false,
+                    deactive = false
                 )
 
                 userDocRef.set(userData).await()
