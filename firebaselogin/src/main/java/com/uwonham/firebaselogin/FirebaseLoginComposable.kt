@@ -286,7 +286,11 @@ var showCreateDialog = remember { mutableStateOf(false) }
                         }
                     }
 if (showCreateDialog.value) {
-    CreateAccountDialog(auth = auth, image = image, allowedEmailDomain = allowedEmailDomain, onDismiss = { showCreateDialog.value = false }, onAccountCreated = { user -> Toast.makeText(context, "Account created: $user", Toast.LENGTH_SHORT).show() })
+    CreateAccountDialog(auth = auth, image = image, allowedEmailDomain = allowedEmailDomain,
+        onDismiss = { showCreateDialog.value = false },
+        onAccountCreated = { user -> Toast.makeText(context, "Account created: $user", Toast.LENGTH_SHORT).show()
+            showCreateDialog.value = false
+        })
 }
                     // Password Field
                     var passwordVisible by remember { mutableStateOf(false) }

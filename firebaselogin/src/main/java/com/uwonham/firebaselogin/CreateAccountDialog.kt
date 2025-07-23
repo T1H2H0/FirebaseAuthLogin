@@ -1,7 +1,7 @@
 package com.uwonham.firebaselogin
 
-
 import android.app.Activity
+import android.util.Log
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -30,6 +30,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -46,8 +47,11 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Observer
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.uwonham.firebaselogin.utils.SignInResult
+
+private const val TAG = "CreateAccountDialog"
 
 /**
  * Displays a Create Account dialog for Firebase authentication with Firestore integration.
@@ -121,19 +125,42 @@ fun CreateAccountDialog(
         "BE" to "Belgium"
     )
 
-    LaunchedEffect(true) {
+    // Initialize ViewModel
+    LaunchedEffect(Unit) {
+        Log.d(TAG, "Initializing CreateAccountDialog")
         viewModel.setAuth(auth)
         if (allowedEmailDomain.isNotEmpty()) {
             viewModel.setAllowedEmailDomain(allowedEmailDomain)
+            Log.d(TAG, "Set allowed email domain: $allowedEmailDomain")
         }
-        viewModel.createAccountResult.observeForever { result ->
+    }
+
+    // Observe account creation result
+    DisposableEffect(viewModel) {
+        val observer = Observer<SignInResult> { result ->
+            Log.d(TAG, "Account creation result: $result")
             when (result) {
-                is SignInResult.Error -> {}
-                SignInResult.Loading -> {}
+                is SignInResult.Error -> {
+                    Log.e(TAG, "Account creation failed: ${result.message}")
+                    // Error is handled through state.errorMessage
+                }
+                SignInResult.Loading -> {
+                    Log.d(TAG, "Account creation in progress...")
+                }
                 is SignInResult.Success -> {
-                    result.user?.let { onAccountCreated(it) }
+                    Log.d(TAG, "Account created successfully: ${result.user?.email}")
+                    result.user?.let { user ->
+                        onAccountCreated(user)
+                        onDismiss() // Close dialog on success
+                    }
                 }
             }
+        }
+
+        viewModel.createAccountResult.observeForever(observer)
+
+        onDispose {
+            viewModel.createAccountResult.removeObserver(observer)
         }
     }
 
@@ -144,12 +171,20 @@ fun CreateAccountDialog(
         } else {
             showDomainWarning = false
         }
-        viewModel.updateEmail(email)
     }
 
     LaunchedEffect(password, confirmPassword) {
         passwordsMatch = password == confirmPassword || confirmPassword.isEmpty()
-        viewModel.updatePassword(password)
+    }
+
+    // Validation function
+    fun isFormValid(): Boolean {
+        return email.isNotBlank() &&
+                password.isNotBlank() &&
+                password.length >= 6 &&
+                name.isNotBlank() &&
+                passwordsMatch &&
+                !showDomainWarning
     }
 
     Dialog(onDismissRequest = onDismiss) {
@@ -230,7 +265,7 @@ fun CreateAccountDialog(
                 OutlinedTextField(
                     value = password,
                     onValueChange = { password = it },
-                    label = { Text("Password *") },
+                    label = { Text("Password * (min. 6 characters)") },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(
                         keyboardType = KeyboardType.Password,
@@ -251,8 +286,19 @@ fun CreateAccountDialog(
                             )
                         }
                     },
+                    isError = password.isNotEmpty() && password.length < 6,
                     modifier = Modifier.fillMaxWidth()
                 )
+
+                // Password length warning
+                if (password.isNotEmpty() && password.length < 6) {
+                    Text(
+                        text = "Password must be at least 6 characters",
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
 
                 // Confirm Password Field
                 OutlinedTextField(
@@ -401,11 +447,13 @@ fun CreateAccountDialog(
 
                     Button(
                         onClick = {
-                            if (activity != null && passwordsMatch &&
-                                email.isNotBlank() && password.isNotBlank() && name.isNotBlank()) {
+                            if (activity != null && isFormValid()) {
+                                Log.d(TAG, "Creating account for: $email")
 
+                                // FIXED: Include password in UserData
                                 val userData = UserData(
                                     email = email,
+                                    password = password, // THIS WAS MISSING!
                                     engineerNumber = engineerNumber,
                                     country = country,
                                     name = name,
@@ -418,14 +466,11 @@ fun CreateAccountDialog(
                                 )
 
                                 viewModel.createAccount(activity, userData)
+                            } else {
+                                Log.w(TAG, "Form validation failed or activity is null")
                             }
                         },
-                        enabled = !state.isLoading &&
-                                email.isNotBlank() &&
-                                password.isNotBlank() &&
-                                name.isNotBlank() &&
-                                passwordsMatch &&
-                                !showDomainWarning
+                        enabled = !state.isLoading && isFormValid()
                     ) {
                         if (state.isLoading) {
                             CircularProgressIndicator(
