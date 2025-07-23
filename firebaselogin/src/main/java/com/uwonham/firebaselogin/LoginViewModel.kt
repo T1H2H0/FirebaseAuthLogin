@@ -33,10 +33,14 @@ private const val TAG = "LibraryLoginViewModel"
 data class UserData(
     val email: String = "",
     val engineerNumber: String = "",
+    val country:String = "GB",
     val name: String = "",
     val photo: String = "",
+    val phonenumber:String = "",
     val asm: String = "",
-    val role: String = "newuser"
+    val role: String = "NEWUSER",
+    val deActivated: Boolean? = false,
+    val deactive: Boolean? = false
 )
 
 @HiltViewModel
@@ -147,6 +151,7 @@ class LoginViewModel @Inject constructor(
                 // Create new user document
                 val userData = UserData(
                     email = userEmail,
+                    deActivated =false,
                     engineerNumber = "", // You can set this based on your logic
                     name = user.displayName ?: "", // Get from Firebase Auth if available
                     photo = generateAutoPhoto(userEmail), // Auto-generate if empty
