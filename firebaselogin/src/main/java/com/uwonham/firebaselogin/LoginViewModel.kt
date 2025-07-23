@@ -139,8 +139,7 @@ class LoginViewModel @Inject constructor(
                             ascBuilder.setAndroidPackageName("com.uwonham.library", true, null)
                             ascBuilder.setHandleCodeInApp(true)
                                 .build()
-                            val asc = ascBuilder.build()
-                            _state.value.auth!!.sendSignInLinkToEmail(userData.email,asc)
+                            sendEmailVerification(user)
                         } catch (e: Exception) {
                             Log.w(TAG, "Failed to update user profile: ${e.message}")
                             // Don't fail the entire operation for profile update failure
@@ -172,6 +171,27 @@ class LoginViewModel @Inject constructor(
         }
     }
 
+    private fun sendEmailVerification(user: FirebaseUser) {
+        if (!user.isEmailVerified) {
+            user.sendEmailVerification()
+                .addOnSuccessListener {
+                    Log.d(TAG, "sendEmailVerification: Verification email sent to ${user.email}")
+                    _state.update {
+                        it.copy(
+                            isLoading = false,
+                            errorMessage ="Verification email sent. Please check your inbox and verify your email address before logging in."
+                        )
+                    }
+                }
+                .addOnFailureListener { e ->
+                    Log.e(TAG, "sendEmailVerification: Failed to send verification email", e)
+                    _state.update { it.copy(isLoading = false, errorMessage = "Failed to send verification email: ${e.message}") }
+                }
+        } else {
+            Log.d(TAG, "sendEmailVerification: Email already verified for ${user.email}")
+        }
+    }
+
     fun updateEmail(email: String) {
         _state.update { it.copy(email = email) }
     }
@@ -196,12 +216,20 @@ class LoginViewModel @Inject constructor(
 
                         // Check if user should be created based on email domain
                         val user = authResult.user
-                        if (user != null && shouldCreateUser(user.email)) {
-                            viewModelScope.launch {
-                                createUserIfNotExists(user)
+                        if (user?.isEmailVerified == false) {
+                            _state.update {
+                                it.copy(
+                                    isLoading = false,
+                                    errorMessage = "User not verified"
+                                )
                             }
                         }
-
+//                        if (user != null && shouldCreateUser(user.email)) {
+//                            viewModelScope.launch {
+//                                createUserIfNotExists(user)
+//                            }
+//                        }
+else{
                         if (_state.value.rememberCredentials != false) {
                             viewModelScope.launch {
                                 saveCredentials(
@@ -214,6 +242,7 @@ class LoginViewModel @Inject constructor(
                         } else {
                             _signInResult.postValue(SignInResult.Success(user = user))
                         }
+                    }
                     }
                     ?.addOnFailureListener { error ->
                         _state.update { it.copy(isLoading = false, errorMessage = error.message) }
