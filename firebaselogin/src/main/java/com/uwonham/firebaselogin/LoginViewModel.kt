@@ -125,7 +125,7 @@ class LoginViewModel @Inject constructor(
                 val user = authResult.user
                 if (user != null) {
                     Log.d(TAG, "createAccount: Firebase Auth user created successfully")
-
+                    sendEmailVerification(user)
                     // Update display name if provided
                     if (userData.name.isNotEmpty()) {
                         val profileUpdates = com.google.firebase.auth.UserProfileChangeRequest.Builder()
@@ -135,11 +135,7 @@ class LoginViewModel @Inject constructor(
                         try {
                             user.updateProfile(profileUpdates).await()
                             Log.d(TAG, "User profile updated successfully")
-                            val ascBuilder = com.google.firebase.auth.ActionCodeSettings.newBuilder()
-                            ascBuilder.setAndroidPackageName("com.uwonham.library", true, null)
-                            ascBuilder.setHandleCodeInApp(true)
-                                .build()
-                            sendEmailVerification(user)
+
                         } catch (e: Exception) {
                             Log.w(TAG, "Failed to update user profile: ${e.message}")
                             // Don't fail the entire operation for profile update failure
@@ -220,7 +216,7 @@ class LoginViewModel @Inject constructor(
                             _state.update {
                                 it.copy(
                                     isLoading = false,
-                                    errorMessage = "User not verified"
+                                    errorMessage = "User not verified please check your email"
                                 )
                             }
                         }
