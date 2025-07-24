@@ -29,6 +29,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -107,12 +108,19 @@ fun FirebaseSignInDialog(
     val autofill = LocalAutofill.current
     val context = LocalContext.current
     val activity = context as? Activity
-
+    val showDomainWarning by remember {
+        derivedStateOf {
+            allowedEmailDomain.isNotEmpty() &&
+                    state.email.isNotEmpty() &&
+                    state.email.endsWith(allowedEmailDomain) &&
+                    !state.accountExists &&
+                    state.email.isNotBlank() // Additional safety check
+        }
+    }
     // Track whether forgot password flow is active
     var isForgotPasswordMode by remember { mutableStateOf(false) }
 
     // Track email domain validation
-    var showDomainWarning by remember { mutableStateOf(false) }
 var showCreateDialog = remember { mutableStateOf(false) }
     LaunchedEffect(true) {
         viewModel.setAuth(auth)
@@ -141,17 +149,14 @@ var showCreateDialog = remember { mutableStateOf(false) }
         }
     }
 
-    // Check email domain when email changes
+
+
+// Then trigger the account check separately
     LaunchedEffect(state.email) {
-        if (allowedEmailDomain.isNotEmpty() && state.email.isNotEmpty()) {
-            if(state.email.endsWith(allowedEmailDomain)){
-                viewModel.checkAccountExists(state.email)
-                showDomainWarning = !state.accountExists
-            } else {
-                showDomainWarning = false
-            }
-        } else {
-            showDomainWarning = false
+        if (allowedEmailDomain.isNotEmpty() &&
+            state.email.isNotEmpty() &&
+            state.email.endsWith(allowedEmailDomain)) {
+            viewModel.checkAccountExists(state.email)
         }
     }
 

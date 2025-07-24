@@ -12,6 +12,8 @@ import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
+import com.google.firebase.auth.FirebaseAuthInvalidUserException
 import com.google.firebase.auth.FirebaseAuthUserCollisionException
 import com.uwonham.firebaselogin.utils.SignInResult
 import com.uwonham.firebaselogin.utils.SignInState
@@ -78,19 +80,27 @@ class LoginViewModel @Inject constructor(
     fun setAllowedEmailDomain(domain: String) {
         allowedEmailDomain = domain
     }
+
     fun checkAccountExists(email: String) {
         viewModelScope.launch {
             try {
-                // Use createUserWithEmailAndPassword attempt to check if account exists
-                // This will throw an exception if the account already exists
-                val tempPassword = "TempPassword123!" // Temporary password for checking
+                // Simply attempt to sign in with a dummy password
+                // This is faster as it doesn't create/delete accounts
+                _state.value.auth?.signInWithEmailAndPassword(email, "dummyPassword")?.await()
 
-                _state.value.auth?.createUserWithEmailAndPassword(email, tempPassword)?.await()
+                // If we reach here, somehow the dummy password worked (very unlikely)
+                // Sign out immediately and consider account exists
+                _state.value.auth?.signOut()
 
-                // If we reach here, the account was created (didn't exist before)
-                // Delete the temporary account immediately
-                _state.value.auth?.currentUser?.delete()?.await()
+                _state.update {
+                    it.copy(
+                        accountExists = true,
+                        errorMessage = null
+                    )
+                }
 
+            } catch (e: FirebaseAuthInvalidUserException) {
+                // Account doesn't exist
                 Log.d(TAG, "Account does not exist for email: $email")
                 _state.update {
                     it.copy(
@@ -98,9 +108,8 @@ class LoginViewModel @Inject constructor(
                         errorMessage = null
                     )
                 }
-
-            } catch (e: FirebaseAuthUserCollisionException) {
-                // Account already exists
+            } catch (e: FirebaseAuthInvalidCredentialsException) {
+                // Account exists but wrong password (expected)
                 Log.d(TAG, "Account exists for email: $email")
                 _state.update {
                     it.copy(
