@@ -206,11 +206,11 @@ var showCreateDialog = remember { mutableStateOf(false) }
 
                 // Domain requirement info (if applicable)
                 if (allowedEmailDomain.isNotEmpty() && !isForgotPasswordMode) {
-                    Text(
-                        text = "User accounts will be created for emails ending with: $allowedEmailDomain",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+//                    Text(
+//                        text = "User accounts will be created for emails ending with: $allowedEmailDomain",
+//                        style = MaterialTheme.typography.bodySmall,
+//                        color = MaterialTheme.colorScheme.onSurfaceVariant
+//                    )
                 }
 
                 // Conditional content based on forgot password mode
