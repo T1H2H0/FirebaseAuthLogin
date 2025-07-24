@@ -143,7 +143,7 @@ var showCreateDialog = remember { mutableStateOf(false) }
     // Check email domain when email changes
     LaunchedEffect(state.email) {
         if (allowedEmailDomain.isNotEmpty() && state.email.isNotEmpty()) {
-            showDomainWarning = !state.email.endsWith(allowedEmailDomain)
+            showDomainWarning = state.email.endsWith(allowedEmailDomain)
         } else {
             showDomainWarning = false
         }
@@ -286,7 +286,7 @@ var showCreateDialog = remember { mutableStateOf(false) }
                         }
                     }
 if (showCreateDialog.value) {
-    CreateAccountDialog(auth = auth, image = image, allowedEmailDomain = allowedEmailDomain,
+    CreateAccountDialog(auth = auth, image = image,email= state.email, allowedEmailDomain = allowedEmailDomain,
         onDismiss = { showCreateDialog.value = false },
         onAccountCreated = { user -> Toast.makeText(context, "Account created: $user", Toast.LENGTH_SHORT).show()
             showCreateDialog.value = false

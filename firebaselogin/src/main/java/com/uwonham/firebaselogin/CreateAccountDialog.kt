@@ -85,6 +85,7 @@ private const val TAG = "CreateAccountDialog"
 fun CreateAccountDialog(
     auth: com.google.firebase.auth.FirebaseAuth,
     image: ImageBitmap?,
+    email: String = "",
     allowedEmailDomain: String = "",
     onDismiss: () -> Unit,
     onAccountCreated: (user: com.google.firebase.auth.FirebaseUser) -> Unit,
@@ -95,7 +96,7 @@ fun CreateAccountDialog(
     val activity = context as? Activity
 
     // Form state
-    var email by remember { mutableStateOf("") }
+    var email by remember { mutableStateOf(email) }
     var password by remember { mutableStateOf("") }
     var confirmPassword by remember { mutableStateOf("") }
     var name by remember { mutableStateOf("") }
