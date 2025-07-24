@@ -12,6 +12,7 @@ import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.google.firebase.auth.FirebaseAuthUserCollisionException
 import com.uwonham.firebaselogin.utils.SignInResult
 import com.uwonham.firebaselogin.utils.SignInState
 import com.google.firebase.firestore.FirebaseFirestore
@@ -77,15 +78,49 @@ class LoginViewModel @Inject constructor(
     fun setAllowedEmailDomain(domain: String) {
         allowedEmailDomain = domain
     }
-suspend fun checkAccountExists(email: String): Boolean {
-    return try {
-        val result =  _state.value.auth?.fetchSignInMethodsForEmail(email)?.await()
-        !result?.signInMethods.isNullOrEmpty()
-    } catch (e: Exception) {
-        false
+    fun checkAccountExists(email: String) {
+        viewModelScope.launch {
+            try {
+                // Use createUserWithEmailAndPassword attempt to check if account exists
+                // This will throw an exception if the account already exists
+                val tempPassword = "TempPassword123!" // Temporary password for checking
+
+                _state.value.auth?.createUserWithEmailAndPassword(email, tempPassword)?.await()
+
+                // If we reach here, the account was created (didn't exist before)
+                // Delete the temporary account immediately
+                _state.value.auth?.currentUser?.delete()?.await()
+
+                Log.d(TAG, "Account does not exist for email: $email")
+                _state.update {
+                    it.copy(
+                        accountExists = false,
+                        errorMessage = null
+                    )
+                }
+
+            } catch (e: FirebaseAuthUserCollisionException) {
+                // Account already exists
+                Log.d(TAG, "Account exists for email: $email")
+                _state.update {
+                    it.copy(
+                        accountExists = true,
+                        errorMessage = null
+                    )
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error checking account existence", e)
+                _state.update {
+                    it.copy(
+                        accountExists = false,
+                        errorMessage = "Error checking account: ${e.message}"
+                    )
+                }
+            }
+        }
     }
 
-}
+
     // FIXED: Create account function with proper error handling and validation
     fun createAccount( userData: UserData) {
         Log.d(TAG, "createAccount: Starting account creation for ${userData.email}")

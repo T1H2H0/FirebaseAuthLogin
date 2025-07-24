@@ -145,7 +145,10 @@ var showCreateDialog = remember { mutableStateOf(false) }
     LaunchedEffect(state.email) {
         if (allowedEmailDomain.isNotEmpty() && state.email.isNotEmpty()) {
             if(state.email.endsWith(allowedEmailDomain)){
-                showDomainWarning = !viewModel.checkAccountExists(state.email)
+                viewModel.checkAccountExists(state.email)
+                showDomainWarning = !state.accountExists
+            } else {
+                showDomainWarning = false
             }
         } else {
             showDomainWarning = false
@@ -276,7 +279,7 @@ var showCreateDialog = remember { mutableStateOf(false) }
                             keyboardType = KeyboardType.Email,
                             imeAction = ImeAction.Next
                         ),
-                        isError = showDomainWarning,
+                        isError = !showDomainWarning,
                         modifier = Modifier.fillMaxWidth()
                     )
 

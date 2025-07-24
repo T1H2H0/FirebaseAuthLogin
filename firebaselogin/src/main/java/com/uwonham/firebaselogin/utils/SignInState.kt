@@ -9,5 +9,6 @@ data class SignInState(
     val isLoading: Boolean = false,
     val errorMessage: String? = null,
     val useSavedCredentials: Boolean = false,
-    val rememberCredentials: Boolean = false
+    val rememberCredentials: Boolean = false,
+    val accountExists: Boolean = false
 )
