@@ -88,7 +88,7 @@ afterEvaluate {
                 from(components["release"])
                 groupId = "com.t1h2h0"
                 artifactId = "firebaselogin"
-                version = "1.1.16"
+                version = "1.1.17"
             }
         }
     }
