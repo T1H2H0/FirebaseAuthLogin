@@ -54,6 +54,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.uwonham.firebaselogin.utils.SignInResult
@@ -149,7 +150,11 @@ var showCreateDialog = remember { mutableStateOf(false) }
         }
     }
 
-    Dialog(onDismissRequest = onDismiss) {
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(
+        usePlatformDefaultWidth = false,
+        dismissOnClickOutside = true,
+        decorFitsSystemWindows = false
+    )) {
         Card(
             modifier = Modifier
                 .fillMaxWidth()
@@ -276,7 +281,7 @@ var showCreateDialog = remember { mutableStateOf(false) }
                     // Domain warning message
                     if (showDomainWarning && allowedEmailDomain.isNotEmpty()) {
                         Text(
-                            text = "Note: User account will only be created for emails ending with $allowedEmailDomain",
+                            text = "Note: First time login with $allowedEmailDomain will require account creation",
                             color = MaterialTheme.colorScheme.secondary,
                             style = MaterialTheme.typography.bodySmall,
                             modifier = Modifier.fillMaxWidth()

@@ -3,14 +3,21 @@ package com.uwonham.firebaselogin
 import android.app.Activity
 import android.util.Log
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -35,50 +42,43 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Observer
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.uwonham.firebaselogin.utils.SignInResult
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 private const val TAG = "CreateAccountDialog"
 
 /**
  * Displays a Create Account dialog for Firebase authentication with Firestore integration.
+ * Now includes proper keyboard navigation and scroll behavior.
  *
  * @param auth The Firebase authentication instance.
  * @param image An optional [ImageBitmap] to display in the dialog.
  * @param allowedEmailDomain The email domain required for account creation (e.g., "@company.com").
  * @param onDismiss Callback function triggered when the dialog is dismissed.
  * @param onAccountCreated Callback function triggered when account creation is successful.
- *
- * ### Example Usage:
- * ```
- * val showCreateAccountDialog = remember { mutableStateOf(true) }
- *
- * if (showCreateAccountDialog.value) {
- *     CreateAccountDialog(
- *         auth = auth,
- *         image = imageBitmap,
- *         allowedEmailDomain = "@company.com",
- *         onDismiss = { showCreateAccountDialog.value = false },
- *         onAccountCreated = { user ->
- *             Log.d(TAG, "Account created: $user")
- *             // Handle successful account creation
- *         }
- *     )
- * }
- * ```
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -94,6 +94,21 @@ fun CreateAccountDialog(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val activity = context as? Activity
+
+    // Focus and keyboard management
+    val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
+    val coroutineScope = rememberCoroutineScope()
+    val scrollState = rememberScrollState()
+
+    // Focus requesters for each field
+    val emailFocusRequester = remember { FocusRequester() }
+    val passwordFocusRequester = remember { FocusRequester() }
+    val confirmPasswordFocusRequester = remember { FocusRequester() }
+    val nameFocusRequester = remember { FocusRequester() }
+    val engineerNumberFocusRequester = remember { FocusRequester() }
+    val phoneNumberFocusRequester = remember { FocusRequester() }
+    val asmFocusRequester = remember { FocusRequester() }
 
     // Form state
     var email by remember { mutableStateOf(email) }
@@ -126,6 +141,15 @@ fun CreateAccountDialog(
         "BE" to "Belgium"
     )
 
+    // Helper function to scroll to focused field
+    fun scrollToField(fieldPosition: Int) {
+        coroutineScope.launch {
+            delay(100) // Small delay to ensure keyboard is shown
+            val targetScroll = (fieldPosition * 80).coerceAtMost(scrollState.maxValue)
+            scrollState.animateScrollTo(targetScroll)
+        }
+    }
+
     // Initialize ViewModel
     LaunchedEffect(Unit) {
         Log.d(TAG, "Initializing CreateAccountDialog")
@@ -143,7 +167,6 @@ fun CreateAccountDialog(
             when (result) {
                 is SignInResult.Error -> {
                     Log.e(TAG, "Account creation failed: ${result.message}")
-                    // Error is handled through state.errorMessage
                 }
                 SignInResult.Loading -> {
                     Log.d(TAG, "Account creation in progress...")
@@ -152,7 +175,7 @@ fun CreateAccountDialog(
                     Log.d(TAG, "Account created successfully: ${result.user?.email}")
                     result.user?.let { user ->
                         onAccountCreated(user)
-                        onDismiss() // Close dialog on success
+                        onDismiss()
                     }
                 }
             }
@@ -188,17 +211,32 @@ fun CreateAccountDialog(
                 !showDomainWarning
     }
 
-    Dialog(onDismissRequest = onDismiss) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false,
+            dismissOnClickOutside = true,
+            decorFitsSystemWindows = false
+        )
+    ) {
         Card(
             modifier = Modifier
                 .fillMaxWidth()
+                .fillMaxHeight(0.95f)
                 .padding(16.dp)
+                .windowInsetsPadding(WindowInsets.ime)
+                .pointerInput(Unit) {
+                    detectTapGestures(onTap = {
+                        focusManager.clearFocus()
+                        keyboardController?.hide()
+                    })
+                }
         ) {
             Column(
                 modifier = Modifier
                     .padding(16.dp)
                     .fillMaxWidth()
-                    .verticalScroll(rememberScrollState()),
+                    .verticalScroll(scrollState),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
@@ -220,19 +258,21 @@ fun CreateAccountDialog(
                                 contentDescription = "Logo"
                             )
                         }
-                    }
 
-                    Text(
-                        text = "Create Account",
-                        style = MaterialTheme.typography.headlineSmall,
-                        modifier = Modifier.align(Alignment.Center)
-                    )
+                        Box {
+                            Text(
+                                text = "Create Account",
+                                style = MaterialTheme.typography.headlineSmall,
+                                modifier = Modifier.align(Alignment.Center)
+                            )
+                        }
+                    }
                 }
 
                 // Domain requirement info
                 if (allowedEmailDomain.isNotEmpty()) {
                     Text(
-                        text = "Account creation requires email ending with: $allowedEmailDomain",
+                        text = "Account will need to be verified via email",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -248,8 +288,16 @@ fun CreateAccountDialog(
                         keyboardType = KeyboardType.Email,
                         imeAction = ImeAction.Next
                     ),
+                    keyboardActions = KeyboardActions(
+                        onNext = {
+                            focusManager.moveFocus(FocusDirection.Down)
+                            scrollToField(1)
+                        }
+                    ),
                     isError = showDomainWarning,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .focusRequester(emailFocusRequester)
                 )
 
                 // Domain warning
@@ -272,6 +320,12 @@ fun CreateAccountDialog(
                         keyboardType = KeyboardType.Password,
                         imeAction = ImeAction.Next
                     ),
+                    keyboardActions = KeyboardActions(
+                        onNext = {
+                            focusManager.moveFocus(FocusDirection.Down)
+                            scrollToField(2)
+                        }
+                    ),
                     visualTransformation = if (passwordVisible)
                         VisualTransformation.None
                     else
@@ -288,7 +342,9 @@ fun CreateAccountDialog(
                         }
                     },
                     isError = password.isNotEmpty() && password.length < 6,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .focusRequester(passwordFocusRequester)
                 )
 
                 // Password length warning
@@ -311,6 +367,12 @@ fun CreateAccountDialog(
                         keyboardType = KeyboardType.Password,
                         imeAction = ImeAction.Next
                     ),
+                    keyboardActions = KeyboardActions(
+                        onNext = {
+                            focusManager.moveFocus(FocusDirection.Down)
+                            scrollToField(3)
+                        }
+                    ),
                     visualTransformation = if (confirmPasswordVisible)
                         VisualTransformation.None
                     else
@@ -327,7 +389,9 @@ fun CreateAccountDialog(
                         }
                     },
                     isError = !passwordsMatch,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .focusRequester(confirmPasswordFocusRequester)
                 )
 
                 if (!passwordsMatch) {
@@ -349,7 +413,15 @@ fun CreateAccountDialog(
                         keyboardType = KeyboardType.Text,
                         imeAction = ImeAction.Next
                     ),
-                    modifier = Modifier.fillMaxWidth()
+                    keyboardActions = KeyboardActions(
+                        onNext = {
+                            focusManager.moveFocus(FocusDirection.Down)
+                            scrollToField(4)
+                        }
+                    ),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .focusRequester(nameFocusRequester)
                 )
 
                 // Engineer Number Field
@@ -362,7 +434,15 @@ fun CreateAccountDialog(
                         keyboardType = KeyboardType.Text,
                         imeAction = ImeAction.Next
                     ),
-                    modifier = Modifier.fillMaxWidth()
+                    keyboardActions = KeyboardActions(
+                        onNext = {
+                            focusManager.moveFocus(FocusDirection.Down)
+                            scrollToField(5)
+                        }
+                    ),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .focusRequester(engineerNumberFocusRequester)
                 )
 
                 // Phone Number Field
@@ -375,7 +455,15 @@ fun CreateAccountDialog(
                         keyboardType = KeyboardType.Phone,
                         imeAction = ImeAction.Next
                     ),
-                    modifier = Modifier.fillMaxWidth()
+                    keyboardActions = KeyboardActions(
+                        onNext = {
+                            focusManager.clearFocus()
+                            scrollToField(6)
+                        }
+                    ),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .focusRequester(phoneNumberFocusRequester)
                 )
 
                 // Country Dropdown
@@ -405,6 +493,8 @@ fun CreateAccountDialog(
                                 onClick = {
                                     country = code
                                     countryExpanded = false
+                                    focusManager.moveFocus(FocusDirection.Down)
+                                    scrollToField(7)
                                 }
                             )
                         }
@@ -421,7 +511,15 @@ fun CreateAccountDialog(
                         keyboardType = KeyboardType.Text,
                         imeAction = ImeAction.Done
                     ),
-                    modifier = Modifier.fillMaxWidth()
+                    keyboardActions = KeyboardActions(
+                        onDone = {
+                            keyboardController?.hide()
+                            focusManager.clearFocus()
+                        }
+                    ),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .focusRequester(asmFocusRequester)
                 )
 
                 // Error Message
@@ -435,12 +533,17 @@ fun CreateAccountDialog(
 
                 // Buttons
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(60.dp), // Fixed height to prevent layout shift
                     horizontalArrangement = Arrangement.End,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     TextButton(
-                        onClick = onDismiss,
+                        onClick = {
+                            keyboardController?.hide()
+                            onDismiss()
+                        },
                         modifier = Modifier.padding(end = 8.dp)
                     ) {
                         Text("Cancel")
@@ -449,16 +552,18 @@ fun CreateAccountDialog(
                     Button(
                         onClick = {
                             if (isFormValid()) {
+                                keyboardController?.hide()
+                                focusManager.clearFocus()
+
                                 Log.d(TAG, "Creating account for: $email")
 
-                                // FIXED: Include password in UserData
                                 val userData = UserData(
                                     email = email,
-                                    password = password, // THIS WAS MISSING!
+                                    password = password,
                                     engineerNumber = engineerNumber,
                                     country = country,
                                     name = name,
-                                    photo = "", // Will be auto-generated
+                                    photo = "",
                                     phonenumber = phoneNumber,
                                     asm = asm,
                                     role = "NEWUSER",
@@ -466,9 +571,9 @@ fun CreateAccountDialog(
                                     deactive = false
                                 )
 
-                                viewModel.createAccount( userData)
+                                viewModel.createAccount(userData)
                             } else {
-                                Log.w(TAG, "Form validation failed or activity is null")
+                                Log.w(TAG, "Form validation failed")
                             }
                         },
                         enabled = !state.isLoading && isFormValid()
