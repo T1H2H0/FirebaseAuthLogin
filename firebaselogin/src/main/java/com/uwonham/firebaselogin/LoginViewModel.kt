@@ -77,7 +77,15 @@ class LoginViewModel @Inject constructor(
     fun setAllowedEmailDomain(domain: String) {
         allowedEmailDomain = domain
     }
+suspend fun checkAccountExists(email: String): Boolean {
+    return try {
+        val result =  _state.value.auth?.fetchSignInMethodsForEmail(email)?.await()
+        !result?.signInMethods.isNullOrEmpty()
+    } catch (e: Exception) {
+        false
+    }
 
+}
     // FIXED: Create account function with proper error handling and validation
     fun createAccount( userData: UserData) {
         Log.d(TAG, "createAccount: Starting account creation for ${userData.email}")

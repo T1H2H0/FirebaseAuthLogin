@@ -144,7 +144,9 @@ var showCreateDialog = remember { mutableStateOf(false) }
     // Check email domain when email changes
     LaunchedEffect(state.email) {
         if (allowedEmailDomain.isNotEmpty() && state.email.isNotEmpty()) {
-            showDomainWarning = state.email.endsWith(allowedEmailDomain)
+            if(state.email.endsWith(allowedEmailDomain)){
+                showDomainWarning = !viewModel.checkAccountExists(state.email)
+            }
         } else {
             showDomainWarning = false
         }
