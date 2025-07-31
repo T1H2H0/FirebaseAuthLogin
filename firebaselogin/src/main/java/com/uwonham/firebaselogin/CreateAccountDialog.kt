@@ -458,7 +458,7 @@ fun CreateAccountDialog(
                     onValueChange = { engineerNumber = it },
                     label = { Text("Engineer Number") },
                     singleLine = true,
-                    isError =engineerNumber.isEmpty() || engineerNumber.length < 6,
+                    isError =engineerNumber.isEmpty() || engineerNumber.length < 5,
                     keyboardOptions = KeyboardOptions(
                         keyboardType = KeyboardType.Number,
                         imeAction = ImeAction.Next

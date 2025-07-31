@@ -501,7 +501,8 @@ else{
             }
 
             // Use email as seed for consistent avatars
-            val seed = email.replace("@", "").replace(".", "")
+        val emailSplit = email.split("_",".",ignoreCase=true,limit = 1)
+            val seed =emailSplit.first().first().toString() + emailSplit.last().first().toString()
             return "https://api.dicebear.com/7.x/initials/svg?seed=$seed&size=150"
         }
 
