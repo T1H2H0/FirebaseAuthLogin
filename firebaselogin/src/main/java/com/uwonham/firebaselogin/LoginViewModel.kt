@@ -430,7 +430,7 @@ else{
                 photo = if (userData.photo.isEmpty()) generateAutoPhoto(userEmail) else userData.photo
             )
 
-            userDocRef.set(finalUserData,SetOptions.merge()).await()
+            userDocRef.set(finalUserData).await()
             Log.d(TAG, "createFirestoreUser: User document created successfully for: $userEmail")
 
         } catch (e: Exception) {
@@ -499,7 +499,7 @@ else{
             }
 
             // Use email as seed for consistent avatars
-        val emailSplit = email.split("_",".",ignoreCase=true,limit = 1)
+        val emailSplit = email.split("_",".",ignoreCase=true,limit = 2)
             val seed =emailSplit.first().first().toString() + emailSplit.last().first().toString()
             return "https://api.dicebear.com/7.x/initials/svg?seed=$seed&size=150"
         }

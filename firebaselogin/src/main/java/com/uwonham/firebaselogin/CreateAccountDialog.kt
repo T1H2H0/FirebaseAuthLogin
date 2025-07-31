@@ -45,12 +45,21 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.autofill.AutofillNode
+import androidx.compose.ui.autofill.AutofillType
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalAutofill
+import androidx.compose.ui.platform.LocalAutofillTree
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
@@ -73,7 +82,7 @@ private const val TAG = "CreateAccountDialog"
 
 /**
  * Displays a Create Account dialog for Firebase authentication with Firestore integration.
- * Now includes proper keyboard navigation and scroll behavior.
+ * Now includes proper keyboard navigation, scroll behavior, and working autofill.
  *
  * @param auth The Firebase authentication instance.
  * @param image An optional [ImageBitmap] to display in the dialog.
@@ -81,7 +90,7 @@ private const val TAG = "CreateAccountDialog"
  * @param onDismiss Callback function triggered when the dialog is dismissed.
  * @param onAccountCreated Callback function triggered when account creation is successful.
  */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalComposeUiApi::class)
 @Composable
 fun CreateAccountDialog(
     auth: com.google.firebase.auth.FirebaseAuth,
@@ -95,6 +104,8 @@ fun CreateAccountDialog(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val activity = context as? Activity
+    val autofill = LocalAutofill.current
+    val autofillTree = LocalAutofillTree.current
 
     // Focus and keyboard management
     val focusManager = LocalFocusManager.current
@@ -113,7 +124,7 @@ fun CreateAccountDialog(
     val asmFocusRequester = remember { FocusRequester() }
 
     // Form state
-    var email by remember { mutableStateOf(email) }
+    var emailValue by remember { mutableStateOf(email) }
     var password by remember { mutableStateOf("") }
     var confirmPassword by remember { mutableStateOf("") }
     var firstName by remember { mutableStateOf("") }
@@ -129,6 +140,38 @@ fun CreateAccountDialog(
     var showDomainWarning by remember { mutableStateOf(false) }
     var passwordsMatch by remember { mutableStateOf(true) }
     var countryExpanded by remember { mutableStateOf(false) }
+
+    // Autofill nodes
+    val emailAutofillNode = remember {
+        AutofillNode(
+            autofillTypes = listOf(AutofillType.EmailAddress),
+            onFill = { emailValue = it }
+        )
+    }
+    val passwordAutofillNode = remember {
+        AutofillNode(
+            autofillTypes = listOf(AutofillType.NewPassword),
+            onFill = { password = it }
+        )
+    }
+    val firstNameAutofillNode = remember {
+        AutofillNode(
+            autofillTypes = listOf(AutofillType.PersonFirstName),
+            onFill = { firstName = it }
+        )
+    }
+    val lastNameAutofillNode = remember {
+        AutofillNode(
+            autofillTypes = listOf(AutofillType.PersonLastName),
+            onFill = { lastName = it }
+        )
+    }
+    val phoneAutofillNode = remember {
+        AutofillNode(
+            autofillTypes = listOf(AutofillType.PhoneNumber),
+            onFill = { phoneNumber = it }
+        )
+    }
 
     // Country options
     val countries = listOf(
@@ -192,9 +235,9 @@ fun CreateAccountDialog(
     }
 
     // Validation effects
-    LaunchedEffect(email) {
-        if (allowedEmailDomain.isNotEmpty() && email.isNotEmpty()) {
-            showDomainWarning = !email.endsWith(allowedEmailDomain)
+    LaunchedEffect(emailValue) {
+        if (allowedEmailDomain.isNotEmpty() && emailValue.isNotEmpty()) {
+            showDomainWarning = !emailValue.endsWith(allowedEmailDomain)
         } else {
             showDomainWarning = false
         }
@@ -204,9 +247,11 @@ fun CreateAccountDialog(
         passwordsMatch = password == confirmPassword || confirmPassword.isEmpty()
     }
 
+
+
     // Validation function
     fun isFormValid(): Boolean {
-        return email.isNotBlank() &&
+        return emailValue.isNotBlank() &&
                 password.isNotBlank() &&
                 password.length >= 6 &&
                 firstName.isNotBlank() &&
@@ -284,8 +329,8 @@ fun CreateAccountDialog(
 
                 // Email Field
                 OutlinedTextField(
-                    value = email,
-                    onValueChange = { email = it },
+                    value = emailValue,
+                    onValueChange = { emailValue = it },
                     label = { Text("Email *") },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(
@@ -302,6 +347,18 @@ fun CreateAccountDialog(
                     modifier = Modifier
                         .fillMaxWidth()
                         .focusRequester(emailFocusRequester)
+                        .onGloballyPositioned { coordinates ->
+                            emailAutofillNode.boundingBox = coordinates.boundsInWindow()
+                        }
+                        .onFocusChanged { focusState ->
+                            autofill?.apply {
+                                if (focusState.isFocused) {
+                                    requestAutofillForNode(emailAutofillNode)
+                                } else {
+                                    cancelAutofillForNode(emailAutofillNode)
+                                }
+                            }
+                        }
                 )
 
                 // Domain warning
@@ -349,6 +406,18 @@ fun CreateAccountDialog(
                     modifier = Modifier
                         .fillMaxWidth()
                         .focusRequester(passwordFocusRequester)
+                        .onGloballyPositioned { coordinates ->
+                            passwordAutofillNode.boundingBox = coordinates.boundsInWindow()
+                        }
+                        .onFocusChanged { focusState ->
+                            autofill?.apply {
+                                if (focusState.isFocused) {
+                                    requestAutofillForNode(passwordAutofillNode)
+                                } else {
+                                    cancelAutofillForNode(passwordAutofillNode)
+                                }
+                            }
+                        }
                 )
 
                 // Password length warning
@@ -411,7 +480,7 @@ fun CreateAccountDialog(
                 OutlinedTextField(
                     value = firstName,
                     onValueChange = { firstName = it },
-                    label = { Text("First Name *") }, // Capitalized
+                    label = { Text("First Name *") },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(
                         capitalization = KeyboardCapitalization.Words,
@@ -427,29 +496,52 @@ fun CreateAccountDialog(
                     modifier = Modifier
                         .fillMaxWidth()
                         .focusRequester(firstNameFocusRequester)
+                        .onGloballyPositioned { coordinates ->
+                            firstNameAutofillNode.boundingBox = coordinates.boundsInWindow()
+                        }
+                        .onFocusChanged { focusState ->
+                            autofill?.apply {
+                                if (focusState.isFocused) {
+                                    requestAutofillForNode(firstNameAutofillNode)
+                                } else {
+                                    cancelAutofillForNode(firstNameAutofillNode)
+                                }
+                            }
+                        }
                 )
 
                 // Last Name Field
                 OutlinedTextField(
                     value = lastName,
                     onValueChange = { lastName = it },
-                    label = { Text("Last Name *") }, // Capitalized
+                    label = { Text("Last Name *") },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(
                         capitalization = KeyboardCapitalization.Words,
-
                         keyboardType = KeyboardType.Text,
                         imeAction = ImeAction.Next
                     ),
                     keyboardActions = KeyboardActions(
                         onNext = {
                             focusManager.moveFocus(FocusDirection.Down)
-                            scrollToField(5) // Adjusted index
+                            scrollToField(5)
                         }
                     ),
                     modifier = Modifier
                         .fillMaxWidth()
                         .focusRequester(lastNameFocusRequester)
+                        .onGloballyPositioned { coordinates ->
+                            lastNameAutofillNode.boundingBox = coordinates.boundsInWindow()
+                        }
+                        .onFocusChanged { focusState ->
+                            autofill?.apply {
+                                if (focusState.isFocused) {
+                                    requestAutofillForNode(lastNameAutofillNode)
+                                } else {
+                                    cancelAutofillForNode(lastNameAutofillNode)
+                                }
+                            }
+                        }
                 )
 
                 // Engineer Number Field
@@ -458,7 +550,7 @@ fun CreateAccountDialog(
                     onValueChange = { engineerNumber = it },
                     label = { Text("Engineer Number") },
                     singleLine = true,
-                    isError =engineerNumber.isEmpty() || engineerNumber.length < 5,
+                    isError = engineerNumber.isEmpty() || engineerNumber.length < 5,
                     keyboardOptions = KeyboardOptions(
                         keyboardType = KeyboardType.Number,
                         imeAction = ImeAction.Next
@@ -466,7 +558,7 @@ fun CreateAccountDialog(
                     keyboardActions = KeyboardActions(
                         onNext = {
                             focusManager.moveFocus(FocusDirection.Down)
-                            scrollToField(6) // Adjusted index
+                            scrollToField(6)
                         }
                     ),
                     modifier = Modifier
@@ -487,12 +579,24 @@ fun CreateAccountDialog(
                     keyboardActions = KeyboardActions(
                         onNext = {
                             focusManager.clearFocus()
-                            scrollToField(7) // Adjusted index
+                            scrollToField(7)
                         }
                     ),
                     modifier = Modifier
                         .fillMaxWidth()
                         .focusRequester(phoneNumberFocusRequester)
+                        .onGloballyPositioned { coordinates ->
+                            phoneAutofillNode.boundingBox = coordinates.boundsInWindow()
+                        }
+                        .onFocusChanged { focusState ->
+                            autofill?.apply {
+                                if (focusState.isFocused) {
+                                    requestAutofillForNode(phoneAutofillNode)
+                                } else {
+                                    cancelAutofillForNode(phoneAutofillNode)
+                                }
+                            }
+                        }
                 )
 
                 // Country Dropdown
@@ -523,7 +627,7 @@ fun CreateAccountDialog(
                                     country = code
                                     countryExpanded = false
                                     focusManager.moveFocus(FocusDirection.Down)
-                                    scrollToField(8) // Adjusted index
+                                    scrollToField(8)
                                 }
                             )
                         }
@@ -584,10 +688,10 @@ fun CreateAccountDialog(
                                 keyboardController?.hide()
                                 focusManager.clearFocus()
 
-                                Log.d(TAG, "Creating account for: $email")
+                                Log.d(TAG, "Creating account for: $emailValue")
 
                                 val userData = UserData(
-                                    email = email,
+                                    email = emailValue,
                                     password = password,
                                     engineernumber = engineerNumber,
                                     country = country,

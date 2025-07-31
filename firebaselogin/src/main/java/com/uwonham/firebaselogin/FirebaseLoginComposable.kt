@@ -36,6 +36,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.autofill.AutofillNode
+import androidx.compose.ui.autofill.AutofillType
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.platform.LocalAutofill
 import androidx.compose.ui.platform.LocalContext
@@ -45,6 +47,9 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -275,9 +280,21 @@ var showCreateDialog = remember { mutableStateOf(false) }
                             keyboardType = KeyboardType.Email,
                             imeAction = ImeAction.Next
                         ),
-                        isError = !showDomainWarning,
-                        modifier = Modifier.fillMaxWidth()
+                        isError = showDomainWarning && allowedEmailDomain.isNotEmpty(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .onFocusChanged { focusState ->
+                                if (focusState.isFocused) {
+                                    autofill?.requestAutofillForNode(
+                                        AutofillNode(
+                                            autofillTypes = listOf(AutofillType.EmailAddress),
+                                            onFill = { viewModel.updateEmail(it) }
+                                        )
+                                    )
+                                }
+                            }
                     )
+
 
                     // Domain warning message
                     if (showDomainWarning && allowedEmailDomain.isNotEmpty()) {
@@ -324,7 +341,20 @@ if (showCreateDialog.value) {
                                 )
                             }
                         },
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .onFocusChanged { focusState ->
+                                if (focusState.isFocused) {
+                                    autofill?.requestAutofillForNode(
+                                        AutofillNode(
+                                            autofillTypes = listOf(AutofillType.Password),
+                                            onFill = { viewModel.updatePassword(it) }
+                                        )
+                                    )
+                                }
+                            }
+
+
                     )
 
                     // Remember me checkbox
