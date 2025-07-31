@@ -261,6 +261,11 @@ fun CreateAccountDialog(
                 password.length >= 6 &&
                 firstName.isNotBlank() &&
                 lastName.isNotBlank() &&
+                engineerNumber.isNotBlank() &&
+                engineerNumber.length >= 5 &&
+                asm.isNotBlank() &&
+                asm.contains("@") &&
+
                 passwordsMatch &&
                 !showDomainWarning
     }
@@ -556,13 +561,14 @@ fun CreateAccountDialog(
                         }
                 )
 
+
                 // Engineer Number Field
                 OutlinedTextField(
                     value = engineerNumber,
                     onValueChange = { engineerNumber = it },
-                    label = { Text("Engineer Number") },
+                    label = { Text("Engineer Number *") },
                     singleLine = true,
-                    isError = engineerNumber.isEmpty() || engineerNumber.length < 5,
+                    isError = engineerNumber.isNotEmpty() && engineerNumber.length < 5,
                     keyboardOptions = KeyboardOptions(
                         keyboardType = KeyboardType.Number,
                         imeAction = ImeAction.Next
@@ -580,6 +586,14 @@ fun CreateAccountDialog(
                             fieldPositions = fieldPositions + ("engineerNumber" to coordinates.boundsInWindow().top)
                         }
                 )
+                if (!engineerNumber.isNotEmpty() && engineerNumber.length < 5) {
+                    Text(
+                        text = "Please Enter a Valid Engineer Number",
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
 
                 // Phone Number Field
                 OutlinedTextField(
@@ -594,6 +608,7 @@ fun CreateAccountDialog(
                     keyboardActions = KeyboardActions(
                         onNext = {
                             focusManager.clearFocus()
+                            asmFocusRequester.requestFocus()
                             scrollToField("asm")
                         }
                     ),
@@ -624,6 +639,7 @@ fun CreateAccountDialog(
                     onValueChange = { asm = it },
                     label = { Text("ASM's Email Address *") },
                     singleLine = true,
+                    isError = asm.isNotEmpty() && !asm.contains("@"),
                     keyboardOptions = KeyboardOptions(
                         keyboardType = KeyboardType.Email,
                         imeAction = ImeAction.Done
@@ -641,6 +657,15 @@ fun CreateAccountDialog(
                             fieldPositions = fieldPositions + ("asm" to coordinates.boundsInWindow().top)
                         }
                 )
+                if (!asm.isNotEmpty() && !asm.contains("@")) {
+                    Text(
+                        text = "ASM must be a valid email address",
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+
 
                 ExposedDropdownMenuBox(
                     expanded = countryExpanded,
