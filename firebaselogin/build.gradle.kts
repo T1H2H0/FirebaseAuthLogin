@@ -89,6 +89,7 @@ afterEvaluate {
                 groupId = "com.t1h2h0"
                 artifactId = "firebaselogin"
                 version = "1.1.32"
+
             }
         }
     }
