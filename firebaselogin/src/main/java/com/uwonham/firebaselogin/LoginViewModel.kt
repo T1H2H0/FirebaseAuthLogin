@@ -95,6 +95,7 @@ class LoginViewModel @Inject constructor(
                 _state.update {
                     it.copy(
                         accountExists = true,
+                        isLoading = false,
                         errorMessage = null
                     )
                 }
@@ -108,17 +109,26 @@ class LoginViewModel @Inject constructor(
                         _state.update {
                             it.copy(
                                 accountExists = false,
+                                isLoading = false,
                                 errorMessage = null
                             )
                         }
                     }
-                    "ERROR_WRONG_PASSWORD",
+                    "ERROR_WRONG_PASSWORD" -> {
+                        _state.update {
+                        it.copy(
+                            accountExists = true,
+                            isLoading = false,
+                            errorMessage = null
+                        )
+                    }}
                     "ERROR_INVALID_CREDENTIAL" -> {
                         // Account exists but wrong password (expected)
                         Log.d(TAG, "Account exists for email: $email")
                         _state.update {
                             it.copy(
                                 accountExists = true,
+                                isLoading = false,
                                 errorMessage = null
                             )
                         }
@@ -139,6 +149,7 @@ class LoginViewModel @Inject constructor(
                         _state.update {
                             it.copy(
                                 accountExists = false,
+                                isLoading = false,
                                 errorMessage = "Unable to verify account: ${e.message}"
                             )
                         }
@@ -305,7 +316,7 @@ class LoginViewModel @Inject constructor(
         }
     }
 
-    private fun sendEmailVerification(user: FirebaseUser) {
+     fun sendEmailVerification(user: FirebaseUser) {
         if (!user.isEmailVerified) {
             user.sendEmailVerification()
                 .addOnSuccessListener {
@@ -313,7 +324,7 @@ class LoginViewModel @Inject constructor(
                     _state.update {
                         it.copy(
                             isLoading = false,
-                            errorMessage ="Verification email sent. Please check your inbox and verify your email address before logging in."
+                            errorMessage ="Verification email sent. Please check your inbox and verify your email address before logging in. This can take up to 10 minutes."
                         )
                     }
                 }

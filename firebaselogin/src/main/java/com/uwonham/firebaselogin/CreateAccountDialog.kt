@@ -105,7 +105,8 @@ fun CreateAccountDialog(
     val emailFocusRequester = remember { FocusRequester() }
     val passwordFocusRequester = remember { FocusRequester() }
     val confirmPasswordFocusRequester = remember { FocusRequester() }
-    val nameFocusRequester = remember { FocusRequester() }
+    val firstNameFocusRequester = remember { FocusRequester() }
+    val lastNameFocusRequester = remember { FocusRequester() }
     val engineerNumberFocusRequester = remember { FocusRequester() }
     val phoneNumberFocusRequester = remember { FocusRequester() }
     val asmFocusRequester = remember { FocusRequester() }
@@ -114,7 +115,8 @@ fun CreateAccountDialog(
     var email by remember { mutableStateOf(email) }
     var password by remember { mutableStateOf("") }
     var confirmPassword by remember { mutableStateOf("") }
-    var name by remember { mutableStateOf("") }
+    var firstName by remember { mutableStateOf("") }
+    var lastName by remember { mutableStateOf("") }
     var engineerNumber by remember { mutableStateOf("") }
     var phoneNumber by remember { mutableStateOf("") }
     var asm by remember { mutableStateOf("") }
@@ -206,7 +208,8 @@ fun CreateAccountDialog(
         return email.isNotBlank() &&
                 password.isNotBlank() &&
                 password.length >= 6 &&
-                name.isNotBlank() &&
+                firstName.isNotBlank() &&
+                lastName.isNotBlank() &&
                 passwordsMatch &&
                 !showDomainWarning
     }
@@ -403,11 +406,11 @@ fun CreateAccountDialog(
                     )
                 }
 
-                // Name Field
+                // First Name Field
                 OutlinedTextField(
-                    value = name,
-                    onValueChange = { name = it },
-                    label = { Text("Full Name *") },
+                    value = firstName,
+                    onValueChange = { firstName = it },
+                    label = { Text("First Name *") }, // Capitalized
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(
                         keyboardType = KeyboardType.Text,
@@ -421,7 +424,28 @@ fun CreateAccountDialog(
                     ),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .focusRequester(nameFocusRequester)
+                        .focusRequester(firstNameFocusRequester)
+                )
+
+                // Last Name Field
+                OutlinedTextField(
+                    value = lastName,
+                    onValueChange = { lastName = it },
+                    label = { Text("Last Name *") }, // Capitalized
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Text,
+                        imeAction = ImeAction.Next
+                    ),
+                    keyboardActions = KeyboardActions(
+                        onNext = {
+                            focusManager.moveFocus(FocusDirection.Down)
+                            scrollToField(5) // Adjusted index
+                        }
+                    ),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .focusRequester(lastNameFocusRequester)
                 )
 
                 // Engineer Number Field
@@ -431,13 +455,13 @@ fun CreateAccountDialog(
                     label = { Text("Engineer Number") },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(
-                        keyboardType = KeyboardType.Text,
+                        keyboardType = KeyboardType.Number,
                         imeAction = ImeAction.Next
                     ),
                     keyboardActions = KeyboardActions(
                         onNext = {
                             focusManager.moveFocus(FocusDirection.Down)
-                            scrollToField(5)
+                            scrollToField(6) // Adjusted index
                         }
                     ),
                     modifier = Modifier
@@ -458,7 +482,7 @@ fun CreateAccountDialog(
                     keyboardActions = KeyboardActions(
                         onNext = {
                             focusManager.clearFocus()
-                            scrollToField(6)
+                            scrollToField(7) // Adjusted index
                         }
                     ),
                     modifier = Modifier
@@ -494,7 +518,7 @@ fun CreateAccountDialog(
                                     country = code
                                     countryExpanded = false
                                     focusManager.moveFocus(FocusDirection.Down)
-                                    scrollToField(7)
+                                    scrollToField(8) // Adjusted index
                                 }
                             )
                         }
@@ -505,10 +529,10 @@ fun CreateAccountDialog(
                 OutlinedTextField(
                     value = asm,
                     onValueChange = { asm = it },
-                    label = { Text("ASM") },
+                    label = { Text("ASM's Email Address *") },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(
-                        keyboardType = KeyboardType.Text,
+                        keyboardType = KeyboardType.Email,
                         imeAction = ImeAction.Done
                     ),
                     keyboardActions = KeyboardActions(
@@ -562,7 +586,7 @@ fun CreateAccountDialog(
                                     password = password,
                                     engineerNumber = engineerNumber,
                                     country = country,
-                                    name = name,
+                                    name = "$firstName $lastName",
                                     photo = "",
                                     phonenumber = phoneNumber,
                                     asm = asm,

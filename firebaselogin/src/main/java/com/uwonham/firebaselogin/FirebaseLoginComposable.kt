@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -363,14 +364,25 @@ if (showCreateDialog.value) {
                     }
 
                     // Error Message
-                    if (state.errorMessage != null) {
+                    state.errorMessage?.let { errorMessage ->
                         Text(
-                            text = state.errorMessage!!,
+                            text = errorMessage,
                             color = MaterialTheme.colorScheme.error,
                             style = MaterialTheme.typography.bodySmall
                         )
+                        if (errorMessage.contains("Verification Email Sent")) {
+                            Spacer(modifier = Modifier.height(8.dp)) // Add some space
+                            Text("Please Wait 10 Mins before resending email")
+                            Spacer(modifier = Modifier.height(8.dp)) // Add some space
+                            TextButton(onClick = {
+                                state.auth?.currentUser?.let { user ->
+                                    viewModel.sendEmailVerification(user = user)
+                                }
+                            }) {
+                                Text("Resend Verification Email ")
+                            }
+                        }
                     }
-
                     // Sign In Buttons
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -380,6 +392,7 @@ if (showCreateDialog.value) {
                         TextButton(
                             onClick = onDismiss,
                             modifier = Modifier.padding(end = 8.dp)
+
                         ) {
                             Text("Cancel")
                         }
@@ -387,6 +400,7 @@ if (showCreateDialog.value) {
                         Button(
                             onClick = {
                                 activity?.let { viewModel.signIn(it) }
+
                             },
                             enabled = !state.isLoading && state.email.isNotBlank() && state.password.isNotBlank()
                         ) {
