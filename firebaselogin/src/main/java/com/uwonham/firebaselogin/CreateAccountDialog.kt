@@ -177,7 +177,24 @@ val countiesFocusRequester = remember { FocusRequester() }
             onFill = { phoneNumber = it }
         )
     }
-
+    val countryAutofillNode = remember {
+        AutofillNode(
+            autofillTypes = listOf(AutofillType.AddressCountry),
+            onFill = { country = it }
+        )
+    }
+    val engineerNumberAutofillNode = remember {
+        AutofillNode(
+            autofillTypes = listOf(AutofillType.valueOf("EngineerNumber")),
+            onFill = { engineerNumber = it }
+        )
+    }
+val asmAutofillNode = remember {
+    AutofillNode(
+        autofillTypes = listOf(AutofillType.EmailAddress),
+        onFill = { asm = it }
+    )
+}
     // Country options
     val countries = listOf(
         "GB" to "United Kingdom",
@@ -584,8 +601,18 @@ val countiesFocusRequester = remember { FocusRequester() }
                         .focusRequester(engineerNumberFocusRequester)
                         .onGloballyPositioned { coordinates ->
                             fieldPositions = fieldPositions + ("engineerNumber" to coordinates.boundsInWindow().top)
+                            engineerNumberAutofillNode.boundingBox = coordinates.boundsInWindow()
+                        }                        .onFocusChanged { focusState ->
+                            autofill?.apply {
+                                if (focusState.isFocused && engineerNumberAutofillNode.boundingBox != null) {
+                                    requestAutofillForNode(engineerNumberAutofillNode)
+                                }else{
+                                    cancelAutofillForNode(engineerNumberAutofillNode)
+
+                                }                                }
                         }
-                )
+
+                        )
                 if (!engineerNumber.isNotEmpty() && engineerNumber.length < 5) {
                     Text(
                         text = "Please Enter a Valid Engineer Number",
@@ -656,8 +683,17 @@ val countiesFocusRequester = remember { FocusRequester() }
                         .focusRequester(asmFocusRequester)
                         .onGloballyPositioned { coordinates ->
                             fieldPositions = fieldPositions + ("asm" to coordinates.boundsInWindow().top)
+                        }.onFocusChanged { focusState ->
+                        autofill?.apply {
+                            if (focusState.isFocused && asmAutofillNode.boundingBox != null) {
+                                requestAutofillForNode(asmAutofillNode)
+                            } else {
+                                cancelAutofillForNode(asmAutofillNode)
+                            }
                         }
-                )
+
+                        }
+                        )
                 if (!asm.isNotEmpty() && !asm.contains("@")) {
                     Text(
                         text = "ASM must be a valid email address",
@@ -677,6 +713,8 @@ val countiesFocusRequester = remember { FocusRequester() }
 
                         .onGloballyPositioned { coordinates ->
                             fieldPositions = fieldPositions + ("country" to coordinates.boundsInWindow().top)
+                            countryAutofillNode.boundingBox = coordinates.boundsInWindow()
+
                         }
                 ) {
                     OutlinedTextField(
