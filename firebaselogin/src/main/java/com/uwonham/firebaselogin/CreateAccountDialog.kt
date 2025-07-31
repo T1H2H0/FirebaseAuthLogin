@@ -185,7 +185,7 @@ val countiesFocusRequester = remember { FocusRequester() }
     }
     val engineerNumberAutofillNode = remember {
         AutofillNode(
-            autofillTypes = listOf(AutofillType.valueOf("EngineerNumber")),
+            autofillTypes = listOf(AutofillType.Username), // Using a common type if custom isn't directly supported
             onFill = { engineerNumber = it }
         )
     }
