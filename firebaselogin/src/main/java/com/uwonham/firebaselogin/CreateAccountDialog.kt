@@ -594,7 +594,7 @@ fun CreateAccountDialog(
                     keyboardActions = KeyboardActions(
                         onNext = {
                             focusManager.clearFocus()
-                            scrollToField("country")
+                            scrollToField("asm")
                         }
                     ),
                     modifier = Modifier
@@ -616,6 +616,32 @@ fun CreateAccountDialog(
                 )
 
                 // Country Dropdown
+
+
+                // ASM Field
+                OutlinedTextField(
+                    value = asm,
+                    onValueChange = { asm = it },
+                    label = { Text("ASM's Email Address *") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Email,
+                        imeAction = ImeAction.Done
+                    ),
+                    keyboardActions = KeyboardActions(
+                        onDone = {
+                            keyboardController?.hide()
+                            focusManager.clearFocus()
+                        }
+                    ),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .focusRequester(asmFocusRequester)
+                        .onGloballyPositioned { coordinates ->
+                            fieldPositions = fieldPositions + ("asm" to coordinates.boundsInWindow().top)
+                        }
+                )
+
                 ExposedDropdownMenuBox(
                     expanded = countryExpanded,
                     onExpandedChange = { countryExpanded = it },
@@ -646,38 +672,12 @@ fun CreateAccountDialog(
                                 onClick = {
                                     country = code
                                     countryExpanded = false
-                                    asmFocusRequester.requestFocus()
-                                    scrollToField("asm")
+
                                 }
                             )
                         }
                     }
                 }
-
-                // ASM Field
-                OutlinedTextField(
-                    value = asm,
-                    onValueChange = { asm = it },
-                    label = { Text("ASM's Email Address *") },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(
-                        keyboardType = KeyboardType.Email,
-                        imeAction = ImeAction.Done
-                    ),
-                    keyboardActions = KeyboardActions(
-                        onDone = {
-                            keyboardController?.hide()
-                            focusManager.clearFocus()
-                        }
-                    ),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .focusRequester(asmFocusRequester)
-                        .onGloballyPositioned { coordinates ->
-                            fieldPositions = fieldPositions + ("asm" to coordinates.boundsInWindow().top)
-                        }
-                )
-
                 // Error Message
                 if (state.errorMessage != null) {
                     Text(
