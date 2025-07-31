@@ -370,10 +370,14 @@ if (showCreateDialog.value) {
                             color = MaterialTheme.colorScheme.error,
                             style = MaterialTheme.typography.bodySmall
                         )
-                        if (errorMessage.contains("Verification Email Sent")) {
+                        val creationTime = state.auth?.currentUser?.metadata?.creationTimestamp
+                        if (
+                            errorMessage.contains("User not verified") &&
+                            creationTime != null &&
+                            creationTime < System.currentTimeMillis() - 1000 * 60 * 10
+                        ) {
                             Spacer(modifier = Modifier.height(8.dp)) // Add some space
-                            Text("Please Wait 10 Mins before resending email")
-                            Spacer(modifier = Modifier.height(8.dp)) // Add some space
+
                             TextButton(onClick = {
                                 state.auth?.currentUser?.let { user ->
                                     viewModel.sendEmailVerification(user = user)

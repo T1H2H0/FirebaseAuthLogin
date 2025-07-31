@@ -55,6 +55,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
@@ -413,6 +414,7 @@ fun CreateAccountDialog(
                     label = { Text("First Name *") }, // Capitalized
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(
+                        capitalization = KeyboardCapitalization.Words,
                         keyboardType = KeyboardType.Text,
                         imeAction = ImeAction.Next
                     ),
@@ -434,6 +436,8 @@ fun CreateAccountDialog(
                     label = { Text("Last Name *") }, // Capitalized
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(
+                        capitalization = KeyboardCapitalization.Words,
+
                         keyboardType = KeyboardType.Text,
                         imeAction = ImeAction.Next
                     ),
