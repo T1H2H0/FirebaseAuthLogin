@@ -21,6 +21,7 @@ import com.uwonham.firebaselogin.utils.SignInResult
 import com.uwonham.firebaselogin.utils.SignInState
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.auth.FirebaseUser
+import com.google.firebase.firestore.SetOptions
 
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -38,7 +39,7 @@ private const val TAG = "LibraryLoginViewModel"
 data class UserData(
     val email: String = "",
     val password: String = "", // ADD PASSWORD FIELD
-    val engineerNumber: String = "",
+    val engineernumber: String = "",
     val country: String = "GB",
     val name: String = "",
     val photo: String = "",
@@ -431,7 +432,7 @@ else{
                 photo = if (userData.photo.isEmpty()) generateAutoPhoto(userEmail) else userData.photo
             )
 
-            userDocRef.set(finalUserData).await()
+            userDocRef.set(finalUserData,SetOptions.merge()).await()
             Log.d(TAG, "createFirestoreUser: User document created successfully for: $userEmail")
 
         } catch (e: Exception) {
@@ -467,10 +468,10 @@ else{
                 val userData = UserData(
                     email = userEmail,
                     password = "", // Don't store password
-                    engineerNumber = "", // You can set this based on your logic
+                    engineernumber = "", // You can set this based on your logic
                     country = "GB",
                     name = user.displayName ?: "", // Get from Firebase Auth if available
-                    photo = generateAutoPhoto(userEmail), // Auto-generate if empty
+                    photo = user.photoUrl.toString(), // Auto-generate if empty
                     phonenumber = "",
                     asm = "", // Set based on your requirements
                     role = "NEWUSER",
@@ -494,10 +495,15 @@ else{
     }
 
     private fun generateAutoPhoto(email: String): String {
-        // Auto-generate photo URL if empty
-        val emailHash = email.hashCode().toString()
-        return "https://via.placeholder.com/150x150.png?text=${email.first().uppercase()}"
-    }
+
+            if (email.isEmpty()) {
+                return "https://api.dicebear.com/7.x/initials/svg?seed=unknown&size=150"
+            }
+
+            // Use email as seed for consistent avatars
+            val seed = email.replace("@", "").replace(".", "")
+            return "https://api.dicebear.com/7.x/initials/svg?seed=$seed&size=150"
+        }
 
     suspend fun saveCredentials(activity: Activity, username: String, password: String) {
         try {

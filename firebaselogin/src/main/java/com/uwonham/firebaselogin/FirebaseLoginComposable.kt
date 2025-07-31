@@ -304,7 +304,7 @@ var showCreateDialog = remember { mutableStateOf(false) }
 if (showCreateDialog.value) {
     CreateAccountDialog(auth = auth, image = image,email= state.email, allowedEmailDomain = allowedEmailDomain,
         onDismiss = { showCreateDialog.value = false },
-        onAccountCreated = { user -> Toast.makeText(context, "Account created: $user", Toast.LENGTH_SHORT).show()
+        onAccountCreated = { user -> Toast.makeText(context, "Account created: ${user.displayName}", Toast.LENGTH_SHORT).show()
             showCreateDialog.value = false
         })
 }
