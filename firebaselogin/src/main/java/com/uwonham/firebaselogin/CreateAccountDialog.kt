@@ -352,7 +352,7 @@ fun CreateAccountDialog(
                         }
                         .onFocusChanged { focusState ->
                             autofill?.apply {
-                                if (focusState.isFocused) {
+                                if (focusState.isFocused && emailAutofillNode.boundingBox != null) {
                                     requestAutofillForNode(emailAutofillNode)
                                 } else {
                                     cancelAutofillForNode(emailAutofillNode)
@@ -411,7 +411,7 @@ fun CreateAccountDialog(
                         }
                         .onFocusChanged { focusState ->
                             autofill?.apply {
-                                if (focusState.isFocused) {
+                                if (focusState.isFocused && passwordAutofillNode.boundingBox != null) {
                                     requestAutofillForNode(passwordAutofillNode)
                                 } else {
                                     cancelAutofillForNode(passwordAutofillNode)
@@ -501,7 +501,7 @@ fun CreateAccountDialog(
                         }
                         .onFocusChanged { focusState ->
                             autofill?.apply {
-                                if (focusState.isFocused) {
+                                if (focusState.isFocused && firstNameAutofillNode.boundingBox != null) {
                                     requestAutofillForNode(firstNameAutofillNode)
                                 } else {
                                     cancelAutofillForNode(firstNameAutofillNode)
@@ -535,7 +535,7 @@ fun CreateAccountDialog(
                         }
                         .onFocusChanged { focusState ->
                             autofill?.apply {
-                                if (focusState.isFocused) {
+                                if (focusState.isFocused && lastNameAutofillNode.boundingBox != null) {
                                     requestAutofillForNode(lastNameAutofillNode)
                                 } else {
                                     cancelAutofillForNode(lastNameAutofillNode)
@@ -590,7 +590,7 @@ fun CreateAccountDialog(
                         }
                         .onFocusChanged { focusState ->
                             autofill?.apply {
-                                if (focusState.isFocused) {
+                                if (focusState.isFocused && phoneAutofillNode.boundingBox != null) {
                                     requestAutofillForNode(phoneAutofillNode)
                                 } else {
                                     cancelAutofillForNode(phoneAutofillNode)

@@ -94,7 +94,7 @@ private const val TAG = "FirebaseLoginComposable"
 fun FirebaseSignInDialog(
     auth: com.google.firebase.auth.FirebaseAuth,
     image: ImageBitmap?,
-    allowedEmailDomain: String = "", // New parameter for domain validation
+    allowedEmailDomain: String = "",
     onDismiss: () -> Unit,
     onSignInSuccess: (user: com.google.firebase.auth.FirebaseUser) -> Unit,
 ) {
@@ -110,17 +110,22 @@ fun FirebaseSignInDialog(
                     state.email.isNotEmpty() &&
                     state.email.endsWith(allowedEmailDomain) &&
                     !state.accountExists &&
-                    state.email.isNotBlank() // Additional safety check
+                    state.email.isNotBlank()
         }
     }
+
     // Track whether forgot password flow is active
     var isForgotPasswordMode by remember { mutableStateOf(false) }
 
     // Track email domain validation
-var showCreateDialog = remember { mutableStateOf(false) }
+    var showCreateDialog = remember { mutableStateOf(false) }
+
+    // Track if components are positioned for autofill
+    var emailFieldPositioned by remember { mutableStateOf(false) }
+    var passwordFieldPositioned by remember { mutableStateOf(false) }
+
     LaunchedEffect(true) {
         viewModel.setAuth(auth)
-        // Set the allowed email domain for user creation
         if (allowedEmailDomain.isNotEmpty()) {
             viewModel.setAllowedEmailDomain(allowedEmailDomain)
         }
@@ -145,9 +150,6 @@ var showCreateDialog = remember { mutableStateOf(false) }
         }
     }
 
-
-
-// Then trigger the account check separately
     LaunchedEffect(state.email) {
         if (allowedEmailDomain.isNotEmpty() &&
             state.email.isNotEmpty() &&
@@ -200,15 +202,6 @@ var showCreateDialog = remember { mutableStateOf(false) }
                     )
                 }
 
-                // Domain requirement info (if applicable)
-                if (allowedEmailDomain.isNotEmpty() && !isForgotPasswordMode) {
-//                    Text(
-//                        text = "User accounts will be created for emails ending with: $allowedEmailDomain",
-//                        style = MaterialTheme.typography.bodySmall,
-//                        color = MaterialTheme.colorScheme.onSurfaceVariant
-//                    )
-                }
-
                 // Conditional content based on forgot password mode
                 if (isForgotPasswordMode) {
                     // Forgot Password Flow
@@ -252,9 +245,7 @@ var showCreateDialog = remember { mutableStateOf(false) }
 
                         Button(
                             onClick = {
-
-                                    viewModel.sendPasswordResetEmail()
-
+                                viewModel.sendPasswordResetEmail()
                             },
                             enabled = !state.isLoading && state.email.isNotBlank()
                         ) {
@@ -283,18 +274,24 @@ var showCreateDialog = remember { mutableStateOf(false) }
                         isError = showDomainWarning && allowedEmailDomain.isNotEmpty(),
                         modifier = Modifier
                             .fillMaxWidth()
+                            .onGloballyPositioned {
+                                emailFieldPositioned = true
+                            }
                             .onFocusChanged { focusState ->
-                                if (focusState.isFocused) {
-                                    autofill?.requestAutofillForNode(
-                                        AutofillNode(
-                                            autofillTypes = listOf(AutofillType.EmailAddress),
-                                            onFill = { viewModel.updateEmail(it) }
+                                if (focusState.isFocused && emailFieldPositioned) {
+                                    try {
+                                        autofill?.requestAutofillForNode(
+                                            AutofillNode(
+                                                autofillTypes = listOf(AutofillType.EmailAddress),
+                                                onFill = { viewModel.updateEmail(it) }
+                                            )
                                         )
-                                    )
+                                    } catch (e: IllegalStateException) {
+                                        Log.w(TAG, "Autofill request failed: ${e.message}")
+                                    }
                                 }
                             }
                     )
-
 
                     // Domain warning message
                     if (showDomainWarning && allowedEmailDomain.isNotEmpty()) {
@@ -308,13 +305,21 @@ var showCreateDialog = remember { mutableStateOf(false) }
                             Text("Create Account")
                         }
                     }
-if (showCreateDialog.value) {
-    CreateAccountDialog(auth = auth, image = image,email= state.email, allowedEmailDomain = allowedEmailDomain,
-        onDismiss = { showCreateDialog.value = false },
-        onAccountCreated = { user -> Toast.makeText(context, "Account created: ${user.displayName}", Toast.LENGTH_SHORT).show()
-            showCreateDialog.value = false
-        })
-}
+
+                    if (showCreateDialog.value) {
+                        CreateAccountDialog(
+                            auth = auth,
+                            image = image,
+                            email = state.email,
+                            allowedEmailDomain = allowedEmailDomain,
+                            onDismiss = { showCreateDialog.value = false },
+                            onAccountCreated = { user ->
+                                Toast.makeText(context, "Account created: ${user.displayName}", Toast.LENGTH_SHORT).show()
+                                showCreateDialog.value = false
+                            }
+                        )
+                    }
+
                     // Password Field
                     var passwordVisible by remember { mutableStateOf(false) }
                     OutlinedTextField(
@@ -343,18 +348,23 @@ if (showCreateDialog.value) {
                         },
                         modifier = Modifier
                             .fillMaxWidth()
+                            .onGloballyPositioned {
+                                passwordFieldPositioned = true
+                            }
                             .onFocusChanged { focusState ->
-                                if (focusState.isFocused) {
-                                    autofill?.requestAutofillForNode(
-                                        AutofillNode(
-                                            autofillTypes = listOf(AutofillType.Password),
-                                            onFill = { viewModel.updatePassword(it) }
+                                if (focusState.isFocused && passwordFieldPositioned) {
+                                    try {
+                                        autofill?.requestAutofillForNode(
+                                            AutofillNode(
+                                                autofillTypes = listOf(AutofillType.Password),
+                                                onFill = { viewModel.updatePassword(it) }
+                                            )
                                         )
-                                    )
+                                    } catch (e: IllegalStateException) {
+                                        Log.w(TAG, "Autofill request failed: ${e.message}")
+                                    }
                                 }
                             }
-
-
                     )
 
                     // Remember me checkbox
@@ -396,10 +406,10 @@ if (showCreateDialog.value) {
                             creationTime != null &&
                             creationTime < System.currentTimeMillis() - 1000 * 60 * 10
                         ) {
-                            Spacer(modifier = Modifier.height(8.dp)) // Add some space
-            Text("Please wait for 10 minutes before trying to resend verification email")
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text("Please wait for 10 minutes before trying to resend verification email")
 
-                            Spacer(modifier = Modifier.height(8.dp)) // Add some space
+                            Spacer(modifier = Modifier.height(8.dp))
                             TextButton(onClick = {
                                 state.auth?.currentUser?.let { user ->
                                     viewModel.sendEmailVerification(user = user)
@@ -409,6 +419,7 @@ if (showCreateDialog.value) {
                             }
                         }
                     }
+
                     // Sign In Buttons
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -418,7 +429,6 @@ if (showCreateDialog.value) {
                         TextButton(
                             onClick = onDismiss,
                             modifier = Modifier.padding(end = 8.dp)
-
                         ) {
                             Text("Cancel")
                         }
@@ -426,7 +436,6 @@ if (showCreateDialog.value) {
                         Button(
                             onClick = {
                                 activity?.let { viewModel.signIn(it) }
-
                             },
                             enabled = !state.isLoading && state.email.isNotBlank() && state.password.isNotBlank()
                         ) {
