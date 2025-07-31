@@ -124,7 +124,7 @@ fun CreateAccountDialog(
     val engineerNumberFocusRequester = remember { FocusRequester() }
     val phoneNumberFocusRequester = remember { FocusRequester() }
     val asmFocusRequester = remember { FocusRequester() }
-
+val countiesFocusRequester = remember { FocusRequester() }
     // Form state
     var emailValue by remember { mutableStateOf(email) }
     var password by remember { mutableStateOf("") }
@@ -607,7 +607,7 @@ fun CreateAccountDialog(
                     ),
                     keyboardActions = KeyboardActions(
                         onNext = {
-                            focusManager.clearFocus()
+
                             asmFocusRequester.requestFocus()
                             scrollToField("asm")
                         }
@@ -642,12 +642,13 @@ fun CreateAccountDialog(
                     isError = asm.isNotEmpty() && !asm.contains("@"),
                     keyboardOptions = KeyboardOptions(
                         keyboardType = KeyboardType.Email,
-                        imeAction = ImeAction.Done
+                        imeAction = ImeAction.Next
                     ),
                     keyboardActions = KeyboardActions(
-                        onDone = {
+                        onNext = {
+                            countiesFocusRequester.requestFocus()
                             keyboardController?.hide()
-                            focusManager.clearFocus()
+                            scrollToField("country")
                         }
                     ),
                     modifier = Modifier
@@ -672,6 +673,8 @@ fun CreateAccountDialog(
                     onExpandedChange = { countryExpanded = it },
                     modifier = Modifier
                         .fillMaxWidth()
+                        .focusRequester(countiesFocusRequester)
+
                         .onGloballyPositioned { coordinates ->
                             fieldPositions = fieldPositions + ("country" to coordinates.boundsInWindow().top)
                         }

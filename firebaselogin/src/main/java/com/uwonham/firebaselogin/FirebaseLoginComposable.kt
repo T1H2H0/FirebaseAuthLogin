@@ -313,7 +313,8 @@ fun FirebaseSignInDialog(
                             allowedEmailDomain = allowedEmailDomain,
                             onDismiss = { showCreateDialog.value = false },
                             onAccountCreated = { user ->
-                                Toast.makeText(context, "Account created: ${user.displayName}", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, "Account created: ${user.displayName} Please verify your email Address .Email Sent", Toast.LENGTH_LONG).show()
+                                Toast.makeText(context, "Account created: ${user.displayName} Please verify your email Address .Email Sent", Toast.LENGTH_LONG).show()
                                 showCreateDialog.value = false
                                 viewModel.checkAccountExists(state.email)
                             }
