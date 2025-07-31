@@ -4,6 +4,7 @@ import android.app.Activity
 import android.content.Context
 import android.content.SharedPreferences
 import android.util.Log
+import androidx.core.net.toUri
 import androidx.credentials.CreatePasswordRequest
 import androidx.credentials.CredentialManager
 import androidx.credentials.GetCredentialRequest
@@ -279,6 +280,7 @@ class LoginViewModel @Inject constructor(
                     if (userData.name.isNotEmpty()) {
                         val profileUpdates = com.google.firebase.auth.UserProfileChangeRequest.Builder()
                             .setDisplayName(userData.name)
+                            .setPhotoUri(generateAutoPhoto(userData.email).toUri())
                             .build()
 
                         try {
@@ -365,7 +367,7 @@ class LoginViewModel @Inject constructor(
                             _state.update {
                                 it.copy(
                                     isLoading = false,
-                                    errorMessage = "User not verified please check your email"
+                                    errorMessage = "User not verified please check your email.\nThis can take up to 10 minutes for you to receive the verification email."
                                 )
                             }
                         }

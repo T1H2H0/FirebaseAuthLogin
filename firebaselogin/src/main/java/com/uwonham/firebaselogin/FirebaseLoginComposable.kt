@@ -377,7 +377,9 @@ if (showCreateDialog.value) {
                             creationTime < System.currentTimeMillis() - 1000 * 60 * 10
                         ) {
                             Spacer(modifier = Modifier.height(8.dp)) // Add some space
+            Text("Please wait for 10 minutes before trying to resend verification email")
 
+                            Spacer(modifier = Modifier.height(8.dp)) // Add some space
                             TextButton(onClick = {
                                 state.auth?.currentUser?.let { user ->
                                     viewModel.sendEmailVerification(user = user)
