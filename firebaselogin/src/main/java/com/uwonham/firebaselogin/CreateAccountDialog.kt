@@ -340,7 +340,7 @@ fun CreateAccountDialog(
                     keyboardActions = KeyboardActions(
                         onNext = {
                             focusManager.moveFocus(FocusDirection.Down)
-                            scrollToField(1)
+                            scrollToField(2)
                         }
                     ),
                     isError = showDomainWarning,
@@ -384,7 +384,7 @@ fun CreateAccountDialog(
                     keyboardActions = KeyboardActions(
                         onNext = {
                             focusManager.moveFocus(FocusDirection.Down)
-                            scrollToField(2)
+                            scrollToField(3)
                         }
                     ),
                     visualTransformation = if (passwordVisible)
@@ -443,7 +443,7 @@ fun CreateAccountDialog(
                     keyboardActions = KeyboardActions(
                         onNext = {
                             focusManager.moveFocus(FocusDirection.Down)
-                            scrollToField(3)
+                            scrollToField(4)
                         }
                     ),
                     visualTransformation = if (confirmPasswordVisible)
@@ -490,7 +490,7 @@ fun CreateAccountDialog(
                     keyboardActions = KeyboardActions(
                         onNext = {
                             focusManager.moveFocus(FocusDirection.Down)
-                            scrollToField(4)
+                            scrollToField(5)
                         }
                     ),
                     modifier = Modifier
@@ -524,7 +524,7 @@ fun CreateAccountDialog(
                     keyboardActions = KeyboardActions(
                         onNext = {
                             focusManager.moveFocus(FocusDirection.Down)
-                            scrollToField(5)
+                            scrollToField(6)
                         }
                     ),
                     modifier = Modifier
@@ -558,7 +558,7 @@ fun CreateAccountDialog(
                     keyboardActions = KeyboardActions(
                         onNext = {
                             focusManager.moveFocus(FocusDirection.Down)
-                            scrollToField(6)
+                            scrollToField(7)
                         }
                     ),
                     modifier = Modifier
@@ -579,7 +579,7 @@ fun CreateAccountDialog(
                     keyboardActions = KeyboardActions(
                         onNext = {
                             focusManager.clearFocus()
-                            scrollToField(7)
+                            scrollToField(8)
                         }
                     ),
                     modifier = Modifier
@@ -627,7 +627,7 @@ fun CreateAccountDialog(
                                     country = code
                                     countryExpanded = false
                                     focusManager.moveFocus(FocusDirection.Down)
-                                    scrollToField(8)
+                                    scrollToField(9)
                                 }
                             )
                         }
