@@ -61,6 +61,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalAutofill
 import androidx.compose.ui.platform.LocalAutofillTree
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.input.ImeAction
@@ -106,6 +107,7 @@ fun CreateAccountDialog(
     val activity = context as? Activity
     val autofill = LocalAutofill.current
     val autofillTree = LocalAutofillTree.current
+    val density = LocalDensity.current
 
     // Focus and keyboard management
     val focusManager = LocalFocusManager.current
@@ -140,6 +142,9 @@ fun CreateAccountDialog(
     var showDomainWarning by remember { mutableStateOf(false) }
     var passwordsMatch by remember { mutableStateOf(true) }
     var countryExpanded by remember { mutableStateOf(false) }
+
+    // Field positions for scrolling
+    var fieldPositions by remember { mutableStateOf(mapOf<String, Float>()) }
 
     // Autofill nodes
     val emailAutofillNode = remember {
@@ -188,11 +193,13 @@ fun CreateAccountDialog(
     )
 
     // Helper function to scroll to focused field
-    fun scrollToField(fieldPosition: Int) {
+    fun scrollToField(fieldKey: String) {
         coroutineScope.launch {
-            delay(100) // Small delay to ensure keyboard is shown
-            val targetScroll = (fieldPosition * 80).coerceAtMost(scrollState.maxValue)
-            scrollState.animateScrollTo(targetScroll)
+            delay(150) // Delay to ensure keyboard is shown and layout is settled
+            fieldPositions[fieldKey]?.let { position ->
+                val targetScroll = (position - 200f).coerceAtLeast(0f).coerceAtMost(scrollState.maxValue.toFloat())
+                scrollState.animateScrollTo(targetScroll.toInt())
+            }
         }
     }
 
@@ -246,8 +253,6 @@ fun CreateAccountDialog(
     LaunchedEffect(password, confirmPassword) {
         passwordsMatch = password == confirmPassword || confirmPassword.isEmpty()
     }
-
-
 
     // Validation function
     fun isFormValid(): Boolean {
@@ -339,8 +344,8 @@ fun CreateAccountDialog(
                     ),
                     keyboardActions = KeyboardActions(
                         onNext = {
-                            focusManager.moveFocus(FocusDirection.Down)
-                            scrollToField(2)
+                            passwordFocusRequester.requestFocus()
+                            scrollToField("password")
                         }
                     ),
                     isError = showDomainWarning,
@@ -348,6 +353,7 @@ fun CreateAccountDialog(
                         .fillMaxWidth()
                         .focusRequester(emailFocusRequester)
                         .onGloballyPositioned { coordinates ->
+                            fieldPositions = fieldPositions + ("email" to coordinates.boundsInWindow().top)
                             emailAutofillNode.boundingBox = coordinates.boundsInWindow()
                         }
                         .onFocusChanged { focusState ->
@@ -383,8 +389,8 @@ fun CreateAccountDialog(
                     ),
                     keyboardActions = KeyboardActions(
                         onNext = {
-                            focusManager.moveFocus(FocusDirection.Down)
-                            scrollToField(3)
+                            confirmPasswordFocusRequester.requestFocus()
+                            scrollToField("confirmPassword")
                         }
                     ),
                     visualTransformation = if (passwordVisible)
@@ -407,6 +413,7 @@ fun CreateAccountDialog(
                         .fillMaxWidth()
                         .focusRequester(passwordFocusRequester)
                         .onGloballyPositioned { coordinates ->
+                            fieldPositions = fieldPositions + ("password" to coordinates.boundsInWindow().top)
                             passwordAutofillNode.boundingBox = coordinates.boundsInWindow()
                         }
                         .onFocusChanged { focusState ->
@@ -442,8 +449,8 @@ fun CreateAccountDialog(
                     ),
                     keyboardActions = KeyboardActions(
                         onNext = {
-                            focusManager.moveFocus(FocusDirection.Down)
-                            scrollToField(4)
+                            firstNameFocusRequester.requestFocus()
+                            scrollToField("firstName")
                         }
                     ),
                     visualTransformation = if (confirmPasswordVisible)
@@ -465,6 +472,9 @@ fun CreateAccountDialog(
                     modifier = Modifier
                         .fillMaxWidth()
                         .focusRequester(confirmPasswordFocusRequester)
+                        .onGloballyPositioned { coordinates ->
+                            fieldPositions = fieldPositions + ("confirmPassword" to coordinates.boundsInWindow().top)
+                        }
                 )
 
                 if (!passwordsMatch) {
@@ -489,14 +499,15 @@ fun CreateAccountDialog(
                     ),
                     keyboardActions = KeyboardActions(
                         onNext = {
-                            focusManager.moveFocus(FocusDirection.Down)
-                            scrollToField(5)
+                            lastNameFocusRequester.requestFocus()
+                            scrollToField("lastName")
                         }
                     ),
                     modifier = Modifier
                         .fillMaxWidth()
                         .focusRequester(firstNameFocusRequester)
                         .onGloballyPositioned { coordinates ->
+                            fieldPositions = fieldPositions + ("firstName" to coordinates.boundsInWindow().top)
                             firstNameAutofillNode.boundingBox = coordinates.boundsInWindow()
                         }
                         .onFocusChanged { focusState ->
@@ -523,14 +534,15 @@ fun CreateAccountDialog(
                     ),
                     keyboardActions = KeyboardActions(
                         onNext = {
-                            focusManager.moveFocus(FocusDirection.Down)
-                            scrollToField(6)
+                            engineerNumberFocusRequester.requestFocus()
+                            scrollToField("engineerNumber")
                         }
                     ),
                     modifier = Modifier
                         .fillMaxWidth()
                         .focusRequester(lastNameFocusRequester)
                         .onGloballyPositioned { coordinates ->
+                            fieldPositions = fieldPositions + ("lastName" to coordinates.boundsInWindow().top)
                             lastNameAutofillNode.boundingBox = coordinates.boundsInWindow()
                         }
                         .onFocusChanged { focusState ->
@@ -557,13 +569,16 @@ fun CreateAccountDialog(
                     ),
                     keyboardActions = KeyboardActions(
                         onNext = {
-                            focusManager.moveFocus(FocusDirection.Down)
-                            scrollToField(7)
+                            phoneNumberFocusRequester.requestFocus()
+                            scrollToField("phoneNumber")
                         }
                     ),
                     modifier = Modifier
                         .fillMaxWidth()
                         .focusRequester(engineerNumberFocusRequester)
+                        .onGloballyPositioned { coordinates ->
+                            fieldPositions = fieldPositions + ("engineerNumber" to coordinates.boundsInWindow().top)
+                        }
                 )
 
                 // Phone Number Field
@@ -579,13 +594,14 @@ fun CreateAccountDialog(
                     keyboardActions = KeyboardActions(
                         onNext = {
                             focusManager.clearFocus()
-                            scrollToField(8)
+                            scrollToField("country")
                         }
                     ),
                     modifier = Modifier
                         .fillMaxWidth()
                         .focusRequester(phoneNumberFocusRequester)
                         .onGloballyPositioned { coordinates ->
+                            fieldPositions = fieldPositions + ("phoneNumber" to coordinates.boundsInWindow().top)
                             phoneAutofillNode.boundingBox = coordinates.boundsInWindow()
                         }
                         .onFocusChanged { focusState ->
@@ -603,7 +619,11 @@ fun CreateAccountDialog(
                 ExposedDropdownMenuBox(
                     expanded = countryExpanded,
                     onExpandedChange = { countryExpanded = it },
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .onGloballyPositioned { coordinates ->
+                            fieldPositions = fieldPositions + ("country" to coordinates.boundsInWindow().top)
+                        }
                 ) {
                     OutlinedTextField(
                         value = countries.find { it.first == country }?.second ?: "United Kingdom",
@@ -626,8 +646,8 @@ fun CreateAccountDialog(
                                 onClick = {
                                     country = code
                                     countryExpanded = false
-                                    focusManager.moveFocus(FocusDirection.Down)
-                                    scrollToField(9)
+                                    asmFocusRequester.requestFocus()
+                                    scrollToField("asm")
                                 }
                             )
                         }
@@ -653,6 +673,9 @@ fun CreateAccountDialog(
                     modifier = Modifier
                         .fillMaxWidth()
                         .focusRequester(asmFocusRequester)
+                        .onGloballyPositioned { coordinates ->
+                            fieldPositions = fieldPositions + ("asm" to coordinates.boundsInWindow().top)
+                        }
                 )
 
                 // Error Message
