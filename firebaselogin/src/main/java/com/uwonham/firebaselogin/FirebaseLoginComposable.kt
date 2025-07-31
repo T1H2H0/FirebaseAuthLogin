@@ -1,7 +1,6 @@
 package com.uwonham.firebaselogin
 
 import android.app.Activity
-import android.graphics.Bitmap
 import android.util.Log
 import android.widget.Toast
 import androidx.compose.foundation.Image
@@ -14,7 +13,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
@@ -38,15 +36,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.autofill.AutofillNode
-import androidx.compose.ui.autofill.AutofillType
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.painter.BitmapPainter
-import androidx.compose.ui.graphics.painter.Painter
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.layout.boundsInWindow
-import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalAutofill
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
@@ -257,9 +247,9 @@ var showCreateDialog = remember { mutableStateOf(false) }
 
                         Button(
                             onClick = {
-                                activity?.let {
-                                    viewModel.sendPasswordResetEmail(it)
-                                }
+
+                                    viewModel.sendPasswordResetEmail()
+
                             },
                             enabled = !state.isLoading && state.email.isNotBlank()
                         ) {

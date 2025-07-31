@@ -14,9 +14,7 @@ import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.firebase.auth.FirebaseAuthException
-import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
-import com.google.firebase.auth.FirebaseAuthInvalidUserException
-import com.google.firebase.auth.FirebaseAuthUserCollisionException
+
 import com.uwonham.firebaselogin.utils.SignInResult
 import com.uwonham.firebaselogin.utils.SignInState
 import com.google.firebase.firestore.FirebaseFirestore
@@ -55,7 +53,7 @@ class LoginViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     @Named("AuthPrefs")
     private val sharedPreferences: SharedPreferences,
-    var sampleString: String
+     sampleString: String
 ): ViewModel() {
     private val _state = MutableStateFlow(SignInState())
     val state: StateFlow<SignInState> = _state.asStateFlow()
@@ -171,62 +169,62 @@ class LoginViewModel @Inject constructor(
     }
 
     // Alternative using the newer error code approach
-    fun checkAccountExistsWithErrorCode(email: String) {
-        viewModelScope.launch {
-            try {
-                _state.value.auth?.signInWithEmailAndPassword(email, "dummyPassword")?.await()
-
-                // If successful, sign out and mark as existing
-                _state.value.auth?.signOut()
-                _state.update {
-                    it.copy(accountExists = true, errorMessage = null)
-                }
-
-            } catch (e: Exception) {
-                // Check error message content since error codes can vary
-                val errorMessage = e.message?.lowercase() ?: ""
-
-                when {
-                    errorMessage.contains("user not found") ||
-                            errorMessage.contains("no user record") ||
-                            errorMessage.contains("user_not_found") -> {
-                        // Account doesn't exist
-                        Log.d(TAG, "Account does not exist for email: $email")
-                        _state.update {
-                            it.copy(accountExists = false, errorMessage = null)
-                        }
-                    }
-                    errorMessage.contains("wrong password") ||
-                            errorMessage.contains("invalid credential") ||
-                            errorMessage.contains("password is invalid") -> {
-                        // Account exists but wrong password
-                        Log.d(TAG, "Account exists for email: $email")
-                        _state.update {
-                            it.copy(accountExists = true, errorMessage = null)
-                        }
-                    }
-                    errorMessage.contains("too many requests") -> {
-                        // Rate limited
-                        _state.update {
-                            it.copy(
-                                accountExists = true,
-                                errorMessage = "Too many attempts. Please try again later."
-                            )
-                        }
-                    }
-                    else -> {
-                        Log.e(TAG, "Unexpected error: ${e.message}")
-                        _state.update {
-                            it.copy(
-                                accountExists = false,
-                                errorMessage = "Unable to verify account"
-                            )
-                        }
-                    }
-                }
-            }
-        }
-    }
+//    fun checkAccountExistsWithErrorCode(email: String) {
+//        viewModelScope.launch {
+//            try {
+//                _state.value.auth?.signInWithEmailAndPassword(email, "dummyPassword")?.await()
+//
+//                // If successful, sign out and mark as existing
+//                _state.value.auth?.signOut()
+//                _state.update {
+//                    it.copy(accountExists = true, errorMessage = null)
+//                }
+//
+//            } catch (e: Exception) {
+//                // Check error message content since error codes can vary
+//                val errorMessage = e.message?.lowercase() ?: ""
+//
+//                when {
+//                    errorMessage.contains("user not found") ||
+//                            errorMessage.contains("no user record") ||
+//                            errorMessage.contains("user_not_found") -> {
+//                        // Account doesn't exist
+//                        Log.d(TAG, "Account does not exist for email: $email")
+//                        _state.update {
+//                            it.copy(accountExists = false, errorMessage = null)
+//                        }
+//                    }
+//                    errorMessage.contains("wrong password") ||
+//                            errorMessage.contains("invalid credential") ||
+//                            errorMessage.contains("password is invalid") -> {
+//                        // Account exists but wrong password
+//                        Log.d(TAG, "Account exists for email: $email")
+//                        _state.update {
+//                            it.copy(accountExists = true, errorMessage = null)
+//                        }
+//                    }
+//                    errorMessage.contains("too many requests") -> {
+//                        // Rate limited
+//                        _state.update {
+//                            it.copy(
+//                                accountExists = true,
+//                                errorMessage = "Too many attempts. Please try again later."
+//                            )
+//                        }
+//                    }
+//                    else -> {
+//                        Log.e(TAG, "Unexpected error: ${e.message}")
+//                        _state.update {
+//                            it.copy(
+//                                accountExists = false,
+//                                errorMessage = "Unable to verify account"
+//                            )
+//                        }
+//                    }
+//                }
+//            }
+//        }
+//    }
 
 
     // FIXED: Create account function with proper error handling and validation
@@ -354,7 +352,7 @@ class LoginViewModel @Inject constructor(
 
     fun signIn(activity: Activity) {
         _state.update { it.copy(isLoading = true, errorMessage = null) }
-        viewModelScope.launch() {
+        viewModelScope.launch {
             try {
                 _signInResult.postValue(SignInResult.Loading)
 
@@ -445,54 +443,54 @@ else{
         }
     }
 
-    private suspend fun createUserIfNotExists(user: FirebaseUser) {
-        try {
-            val userEmail = user.email ?: return
-
-            Log.d(TAG, "createUserIfNotExists: Checking if user exists: $userEmail")
-
-            // Ensure we're authenticated before accessing Firestore
-            if (_state.value.auth?.currentUser == null) {
-                Log.w(TAG, "User not authenticated, cannot create Firestore document")
-                return
-            }
-
-            val userDocRef = firestore.collection("Users").document(userEmail)
-
-            // Check if user document already exists
-            val docSnapshot = userDocRef.get().await()
-
-            if (!docSnapshot.exists()) {
-                Log.d(TAG, "createUserIfNotExists: Creating new user document")
-                // Create new user document with updated structure
-                val userData = UserData(
-                    email = userEmail,
-                    password = "", // Don't store password
-                    engineernumber = "", // You can set this based on your logic
-                    country = "GB",
-                    name = user.displayName ?: "", // Get from Firebase Auth if available
-                    photo = user.photoUrl.toString(), // Auto-generate if empty
-                    phonenumber = "",
-                    asm = "", // Set based on your requirements
-                    role = "NEWUSER",
-                    deActivated = false,
-                    deactive = false
-                )
-
-                userDocRef.set(userData).await()
-                Log.d(TAG, "createUserIfNotExists: User document created for: $userEmail")
-            } else {
-                Log.d(TAG, "createUserIfNotExists: User document already exists for: $userEmail")
-            }
-
-        } catch (e: Exception) {
-            Log.e(TAG, "createUserIfNotExists: Error creating user document", e)
-            // Additional error handling for permission issues
-            if (e.message?.contains("PERMISSION_DENIED") == true) {
-                Log.e(TAG, "Permission denied - check Firebase security rules")
-            }
-        }
-    }
+//    private suspend fun createUserIfNotExists(user: FirebaseUser) {
+//        try {
+//            val userEmail = user.email ?: return
+//
+//            Log.d(TAG, "createUserIfNotExists: Checking if user exists: $userEmail")
+//
+//            // Ensure we're authenticated before accessing Firestore
+//            if (_state.value.auth?.currentUser == null) {
+//                Log.w(TAG, "User not authenticated, cannot create Firestore document")
+//                return
+//            }
+//
+//            val userDocRef = firestore.collection("Users").document(userEmail)
+//
+//            // Check if user document already exists
+//            val docSnapshot = userDocRef.get().await()
+//
+//            if (!docSnapshot.exists()) {
+//                Log.d(TAG, "createUserIfNotExists: Creating new user document")
+//                // Create new user document with updated structure
+//                val userData = UserData(
+//                    email = userEmail,
+//                    password = "", // Don't store password
+//                    engineernumber = "", // You can set this based on your logic
+//                    country = "GB",
+//                    name = user.displayName ?: "", // Get from Firebase Auth if available
+//                    photo = user.photoUrl.toString(), // Auto-generate if empty
+//                    phonenumber = "",
+//                    asm = "", // Set based on your requirements
+//                    role = "NEWUSER",
+//                    deActivated = false,
+//                    deactive = false
+//                )
+//
+//                userDocRef.set(userData).await()
+//                Log.d(TAG, "createUserIfNotExists: User document created for: $userEmail")
+//            } else {
+//                Log.d(TAG, "createUserIfNotExists: User document already exists for: $userEmail")
+//            }
+//
+//        } catch (e: Exception) {
+//            Log.e(TAG, "createUserIfNotExists: Error creating user document", e)
+//            // Additional error handling for permission issues
+//            if (e.message?.contains("PERMISSION_DENIED") == true) {
+//                Log.e(TAG, "Permission denied - check Firebase security rules")
+//            }
+//        }
+//    }
 
     private fun generateAutoPhoto(email: String): String {
 
@@ -566,6 +564,7 @@ else{
                     _state.update { it.copy(isLoading = false) }
                 }
             } catch (e: Exception) {
+                Log.e(TAG, "Error loading saved credentials: $e")
                 _state.update {
                     it.copy(
                         isLoading = false,
@@ -582,7 +581,7 @@ else{
         Log.d(TAG, "checkForSavedCredentials: $hasSavedCredentials")
     }
 
-    fun sendPasswordResetEmail(activity: Activity) {
+    fun sendPasswordResetEmail() {
         // Clear previous error
         _state.update { it.copy(errorMessage = null, isLoading = true) }
 
