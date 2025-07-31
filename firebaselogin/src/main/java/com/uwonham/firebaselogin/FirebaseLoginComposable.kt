@@ -315,6 +315,7 @@ fun FirebaseSignInDialog(
                             onAccountCreated = { user ->
                                 Toast.makeText(context, "Account created: ${user.displayName}", Toast.LENGTH_SHORT).show()
                                 showCreateDialog.value = false
+                                viewModel.checkAccountExists(state.email)
                             }
                         )
                     }

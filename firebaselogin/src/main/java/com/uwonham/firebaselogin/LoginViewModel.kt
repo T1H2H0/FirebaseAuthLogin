@@ -94,8 +94,8 @@ class LoginViewModel @Inject constructor(
 
                 _state.update {
                     it.copy(
-                        accountExists = true,
-                        isLoading = false,
+                        accountExists = false,
+                        isLoading = true,
                         errorMessage = null
                     )
                 }
