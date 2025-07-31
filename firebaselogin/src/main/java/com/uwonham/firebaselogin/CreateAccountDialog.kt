@@ -458,6 +458,7 @@ fun CreateAccountDialog(
                     onValueChange = { engineerNumber = it },
                     label = { Text("Engineer Number") },
                     singleLine = true,
+                    isError =engineerNumber.isEmpty() || engineerNumber.length < 6,
                     keyboardOptions = KeyboardOptions(
                         keyboardType = KeyboardType.Number,
                         imeAction = ImeAction.Next
@@ -588,7 +589,7 @@ fun CreateAccountDialog(
                                 val userData = UserData(
                                     email = email,
                                     password = password,
-                                    engineerNumber = engineerNumber,
+                                    engineernumber = engineerNumber,
                                     country = country,
                                     name = "$firstName $lastName",
                                     photo = "",
