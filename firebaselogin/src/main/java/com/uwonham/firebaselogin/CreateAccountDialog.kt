@@ -329,7 +329,7 @@ val asmAutofillNode = remember {
                     ) {
                         image?.let {
                             Image(
-                                modifier = Modifier.size(80.dp),
+                                modifier = Modifier.size(80.dp).padding(end = 8.dp),
                                 bitmap = it,
                                 contentDescription = "Logo"
                             )

@@ -9,10 +9,15 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
@@ -162,291 +167,306 @@ fun FirebaseSignInDialog(
         dismissOnClickOutside = true,
         decorFitsSystemWindows = false
     )) {
-        Card(
+        Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp)
+                .fillMaxSize()
+                .padding(WindowInsets.systemBars.asPaddingValues())
+                .imePadding() // Handles keyboard
         ) {
-            Column(
+            Card(
                 modifier = Modifier
+                    .fillMaxWidth()
                     .padding(16.dp)
-                    .fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                // Title and Logo
-                Box(
+                Column(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp)
+                        .padding(16.dp)
+                        .fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Start
+                    // Title and Logo
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp)
                     ) {
-                        image?.let {
-                            Image(
-                                modifier = Modifier.size(100.dp),
-                                bitmap = it,
-                                contentDescription = "Logo"
-                            )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Start
+                        ) {
+                            image?.let {
+                                Image(
+                                    modifier = Modifier.size(100.dp),
+                                    bitmap = it,
+                                    contentDescription = "Logo"
+                                )
+                            }
                         }
-                    }
 
-                    Text(
-                        text = if (isForgotPasswordMode) "Reset Password" else "Sign In",
-                        style = MaterialTheme.typography.headlineSmall,
-                        modifier = Modifier.align(Alignment.Center)
-                    )
-                }
-
-                // Conditional content based on forgot password mode
-                if (isForgotPasswordMode) {
-                    // Forgot Password Flow
-                    Text(
-                        text = "Enter your email to reset your password",
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.padding(bottom = 8.dp)
-                    )
-
-                    OutlinedTextField(
-                        value = state.email,
-                        onValueChange = { viewModel.updateEmail(it) },
-                        label = { Text("Email") },
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(
-                            keyboardType = KeyboardType.Email,
-                            imeAction = ImeAction.Done
-                        ),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-
-                    // Error or Success Message
-                    if (state.errorMessage != null) {
                         Text(
-                            text = state.errorMessage!!,
-                            color = if (state.errorMessage!!.contains("sent"))
-                                MaterialTheme.colorScheme.primary
-                            else
-                                MaterialTheme.colorScheme.error,
-                            style = MaterialTheme.typography.bodySmall
+                            text = if (isForgotPasswordMode) "Reset Password" else "Sign In",
+                            style = MaterialTheme.typography.headlineSmall,
+                            modifier = Modifier.align(Alignment.Center)
                         )
                     }
 
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        TextButton(onClick = { isForgotPasswordMode = false }) {
-                            Text("Back to Sign In")
-                        }
-
-                        Button(
-                            onClick = {
-                                viewModel.sendPasswordResetEmail()
-                            },
-                            enabled = !state.isLoading && state.email.isNotBlank()
-                        ) {
-                            if (state.isLoading) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(24.dp),
-                                    strokeWidth = 2.dp
-                                )
-                            } else {
-                                Text("Reset Password")
-                            }
-                        }
-                    }
-                } else {
-                    // Regular Sign In Flow
-                    // Email Field
-                    OutlinedTextField(
-                        value = state.email,
-                        onValueChange = { viewModel.updateEmail(it) },
-                        label = { Text("Email") },
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(
-                            keyboardType = KeyboardType.Email,
-                            imeAction = ImeAction.Next
-                        ),
-                        isError = showDomainWarning && allowedEmailDomain.isNotEmpty(),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .onGloballyPositioned {
-                                emailFieldPositioned = true
-                            }
-                            .onFocusChanged { focusState ->
-                                if (focusState.isFocused && emailFieldPositioned) {
-                                    try {
-                                        autofill?.requestAutofillForNode(
-                                            AutofillNode(
-                                                autofillTypes = listOf(AutofillType.EmailAddress),
-                                                onFill = { viewModel.updateEmail(it) }
-                                            )
-                                        )
-                                    } catch (e: IllegalStateException) {
-                                        Log.w(TAG, "Autofill request failed: ${e.message}")
-                                    }
-                                }
-                            }
-                    )
-
-                    // Domain warning message
-                    if (showDomainWarning && allowedEmailDomain.isNotEmpty()) {
+                    // Conditional content based on forgot password mode
+                    if (isForgotPasswordMode) {
+                        // Forgot Password Flow
                         Text(
-                            text = "Note: First time login with $allowedEmailDomain will require account creation",
-                            color = MaterialTheme.colorScheme.secondary,
-                            style = MaterialTheme.typography.bodySmall,
+                            text = "Enter your email to reset your password",
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        )
+
+                        OutlinedTextField(
+                            value = state.email,
+                            onValueChange = { viewModel.updateEmail(it) },
+                            label = { Text("Email") },
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(
+                                keyboardType = KeyboardType.Email,
+                                imeAction = ImeAction.Done
+                            ),
                             modifier = Modifier.fillMaxWidth()
                         )
-                        Button(onClick = { showCreateDialog.value = true }) {
-                            Text("Create Account")
+
+                        // Error or Success Message
+                        if (state.errorMessage != null) {
+                            Text(
+                                text = state.errorMessage!!,
+                                color = if (state.errorMessage!!.contains("sent"))
+                                    MaterialTheme.colorScheme.primary
+                                else
+                                    MaterialTheme.colorScheme.error,
+                                style = MaterialTheme.typography.bodySmall
+                            )
                         }
-                    }
 
-                    if (showCreateDialog.value) {
-                        CreateAccountDialog(
-                            auth = auth,
-                            image = image,
-                            email = state.email,
-                            allowedEmailDomain = allowedEmailDomain,
-                            onDismiss = { showCreateDialog.value = false },
-                            onAccountCreated = { user ->
-                                Toast.makeText(context, "Account created: ${user.displayName} Please verify your email Address .Email Sent", Toast.LENGTH_LONG).show()
-                                Toast.makeText(context, "Account created: ${user.displayName} Please verify your email Address .Email Sent", Toast.LENGTH_LONG).show()
-                                showCreateDialog.value = false
-                                viewModel.checkAccountExists(state.email)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            TextButton(onClick = { isForgotPasswordMode = false }) {
+                                Text("Back to Sign In")
                             }
-                        )
-                    }
 
-                    // Password Field
-                    var passwordVisible by remember { mutableStateOf(false) }
-                    OutlinedTextField(
-                        value = state.password,
-                        onValueChange = { viewModel.updatePassword(it) },
-                        label = { Text("Password") },
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(
-                            keyboardType = KeyboardType.Password,
-                            imeAction = ImeAction.Done
-                        ),
-                        visualTransformation = if (passwordVisible)
-                            VisualTransformation.None
-                        else
-                            PasswordVisualTransformation(),
-                        trailingIcon = {
-                            IconButton(onClick = { passwordVisible = !passwordVisible }) {
-                                Icon(
-                                    imageVector = if (passwordVisible)
-                                        androidx.compose.material.icons.Icons.Default.Visibility
-                                    else
-                                        androidx.compose.material.icons.Icons.Default.VisibilityOff,
-                                    contentDescription = if (passwordVisible) "Hide password" else "Show password"
-                                )
+                            Button(
+                                onClick = {
+                                    viewModel.sendPasswordResetEmail()
+                                },
+                                enabled = !state.isLoading && state.email.isNotBlank()
+                            ) {
+                                if (state.isLoading) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(24.dp),
+                                        strokeWidth = 2.dp
+                                    )
+                                } else {
+                                    Text("Reset Password")
+                                }
                             }
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .onGloballyPositioned {
-                                passwordFieldPositioned = true
-                            }
-                            .onFocusChanged { focusState ->
-                                if (focusState.isFocused && passwordFieldPositioned) {
-                                    try {
-                                        autofill?.requestAutofillForNode(
-                                            AutofillNode(
-                                                autofillTypes = listOf(AutofillType.Password),
-                                                onFill = { viewModel.updatePassword(it) }
+                        }
+                    } else {
+                        // Regular Sign In Flow
+                        // Email Field
+                        OutlinedTextField(
+                            value = state.email,
+                            onValueChange = { viewModel.updateEmail(it) },
+                            label = { Text("Email") },
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(
+                                keyboardType = KeyboardType.Email,
+                                imeAction = ImeAction.Next
+                            ),
+                            isError = showDomainWarning && allowedEmailDomain.isNotEmpty(),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .onGloballyPositioned {
+                                    emailFieldPositioned = true
+                                }
+                                .onFocusChanged { focusState ->
+                                    if (focusState.isFocused && emailFieldPositioned) {
+                                        try {
+                                            autofill?.requestAutofillForNode(
+                                                AutofillNode(
+                                                    autofillTypes = listOf(AutofillType.EmailAddress),
+                                                    onFill = { viewModel.updateEmail(it) }
+                                                )
                                             )
-                                        )
-                                    } catch (e: IllegalStateException) {
-                                        Log.w(TAG, "Autofill request failed: ${e.message}")
+                                        } catch (e: IllegalStateException) {
+                                            Log.w(TAG, "Autofill request failed: ${e.message}")
+                                        }
                                     }
                                 }
+                        )
+
+                        // Domain warning message
+                        if (showDomainWarning && allowedEmailDomain.isNotEmpty()) {
+                            Text(
+                                text = "Note: First time login with $allowedEmailDomain will require account creation",
+                                color = MaterialTheme.colorScheme.secondary,
+                                style = MaterialTheme.typography.bodySmall,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Button(onClick = { showCreateDialog.value = true }) {
+                                Text("Create Account")
                             }
-                    )
-
-                    // Remember me checkbox
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Checkbox(
-                            checked = state.rememberCredentials,
-                            onCheckedChange = { viewModel.setRememberCredentials(it) }
-                        )
-                        Text(
-                            text = "Remember me",
-                            style = MaterialTheme.typography.bodyMedium,
-                            modifier = Modifier.padding(start = 8.dp)
-                        )
-                    }
-
-                    // Forgot Password Link
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.End
-                    ) {
-                        TextButton(onClick = { isForgotPasswordMode = true }) {
-                            Text("Forgot Password?")
                         }
-                    }
 
-                    // Error Message
-                    state.errorMessage?.let { errorMessage ->
-                        Text(
-                            text = errorMessage,
-                            color = MaterialTheme.colorScheme.error,
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                        val creationTime = state.auth?.currentUser?.metadata?.creationTimestamp
-                        if (
-                            errorMessage.contains("User not verified") &&
-                            creationTime != null &&
-                            creationTime < System.currentTimeMillis() - 1000 * 60 * 10
-                        ) {
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text("Please wait for 10 minutes before trying to resend verification email")
-
-                            Spacer(modifier = Modifier.height(8.dp))
-                            TextButton(onClick = {
-                                state.auth?.currentUser?.let { user ->
-                                    viewModel.sendEmailVerification(user = user)
+                        if (showCreateDialog.value) {
+                            CreateAccountDialog(
+                                auth = auth,
+                                image = image,
+                                email = state.email,
+                                allowedEmailDomain = allowedEmailDomain,
+                                onDismiss = { showCreateDialog.value = false },
+                                onAccountCreated = { user ->
+                                    Toast.makeText(
+                                        context,
+                                        "Account created: ${user.displayName} Please verify your email Address .Email Sent",
+                                        Toast.LENGTH_LONG
+                                    ).show()
+                                    Toast.makeText(
+                                        context,
+                                        "Account created: ${user.displayName} Please verify your email Address .Email Sent",
+                                        Toast.LENGTH_LONG
+                                    ).show()
+                                    showCreateDialog.value = false
+                                    viewModel.checkAccountExists(state.email)
                                 }
-                            }) {
-                                Text("Resend Verification Email ")
+                            )
+                        }
+
+                        // Password Field
+                        var passwordVisible by remember { mutableStateOf(false) }
+                        OutlinedTextField(
+                            value = state.password,
+                            onValueChange = { viewModel.updatePassword(it) },
+                            label = { Text("Password") },
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(
+                                keyboardType = KeyboardType.Password,
+                                imeAction = ImeAction.Done
+                            ),
+                            visualTransformation = if (passwordVisible)
+                                VisualTransformation.None
+                            else
+                                PasswordVisualTransformation(),
+                            trailingIcon = {
+                                IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                                    Icon(
+                                        imageVector = if (passwordVisible)
+                                            androidx.compose.material.icons.Icons.Default.Visibility
+                                        else
+                                            androidx.compose.material.icons.Icons.Default.VisibilityOff,
+                                        contentDescription = if (passwordVisible) "Hide password" else "Show password"
+                                    )
+                                }
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .onGloballyPositioned {
+                                    passwordFieldPositioned = true
+                                }
+                                .onFocusChanged { focusState ->
+                                    if (focusState.isFocused && passwordFieldPositioned) {
+                                        try {
+                                            autofill?.requestAutofillForNode(
+                                                AutofillNode(
+                                                    autofillTypes = listOf(AutofillType.Password),
+                                                    onFill = { viewModel.updatePassword(it) }
+                                                )
+                                            )
+                                        } catch (e: IllegalStateException) {
+                                            Log.w(TAG, "Autofill request failed: ${e.message}")
+                                        }
+                                    }
+                                }
+                        )
+
+                        // Remember me checkbox
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Checkbox(
+                                checked = state.rememberCredentials,
+                                onCheckedChange = { viewModel.setRememberCredentials(it) }
+                            )
+                            Text(
+                                text = "Remember me",
+                                style = MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier.padding(start = 8.dp)
+                            )
+                        }
+
+                        // Forgot Password Link
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.End
+                        ) {
+                            TextButton(onClick = { isForgotPasswordMode = true }) {
+                                Text("Forgot Password?")
                             }
                         }
-                    }
 
-                    // Sign In Buttons
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.End,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        TextButton(
-                            onClick = onDismiss,
-                            modifier = Modifier.padding(end = 8.dp)
-                        ) {
-                            Text("Cancel")
+                        // Error Message
+                        state.errorMessage?.let { errorMessage ->
+                            Text(
+                                text = errorMessage,
+                                color = MaterialTheme.colorScheme.error,
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                            val creationTime = state.auth?.currentUser?.metadata?.creationTimestamp
+                            if (
+                                errorMessage.contains("User not verified") &&
+                                creationTime != null &&
+                                creationTime < System.currentTimeMillis() - 1000 * 60 * 10
+                            ) {
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text("Please wait for 10 minutes before trying to resend verification email")
+
+                                Spacer(modifier = Modifier.height(8.dp))
+                                TextButton(onClick = {
+                                    state.auth?.currentUser?.let { user ->
+                                        viewModel.sendEmailVerification(user = user)
+                                    }
+                                }) {
+                                    Text("Resend Verification Email ")
+                                }
+                            }
                         }
 
-                        Button(
-                            onClick = {
-                                activity?.let { viewModel.signIn(it) }
-                            },
-                            enabled = !state.isLoading && state.email.isNotBlank() && state.password.isNotBlank()
+                        // Sign In Buttons
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.End,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            if (state.isLoading) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(24.dp),
-                                    strokeWidth = 2.dp
-                                )
-                            } else {
-                                Text("Sign In")
+                            TextButton(
+                                onClick = onDismiss,
+                                modifier = Modifier.padding(end = 8.dp)
+                            ) {
+                                Text("Cancel")
+                            }
+
+                            Button(
+                                onClick = {
+                                    activity?.let { viewModel.signIn(it) }
+                                },
+                                enabled = !state.isLoading && state.email.isNotBlank() && state.password.isNotBlank()
+                            ) {
+                                if (state.isLoading) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(24.dp),
+                                        strokeWidth = 2.dp
+                                    )
+                                } else {
+                                    Text("Sign In")
+                                }
                             }
                         }
                     }
