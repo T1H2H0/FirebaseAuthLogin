@@ -292,7 +292,7 @@ val asmAutofillNode = remember {
         properties = DialogProperties(
             usePlatformDefaultWidth = false,
             dismissOnClickOutside = true,
-            decorFitsSystemWindows = false
+            decorFitsSystemWindows = true
         )
     ) {
         Card(
