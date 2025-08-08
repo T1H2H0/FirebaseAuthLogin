@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
@@ -328,16 +329,16 @@ fun CreateAccountDialog(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                // Title and Logo
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp)
+                // Title, Logo and Country Dropdown Row
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
+                    // Left side: Logo and Title
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Start
+                        modifier = Modifier.weight(1f)
                     ) {
                         image?.let {
                             Image(
@@ -348,54 +349,43 @@ fun CreateAccountDialog(
                                 contentDescription = "Logo"
                             )
                         }
+                        Text(
+                            text = "Create Account",
+                            style = MaterialTheme.typography.headlineSmall
+                        )
+                    }
 
-                        Box {
-                            Text(
-                                text = "Create Account",
-                                style = MaterialTheme.typography.headlineSmall,
-                                modifier = Modifier.align(Alignment.Center)
-                            )
-                        }
-                        // Country Dropdown
-                        ExposedDropdownMenuBox(
-                            expanded = countryExpanded,
-                            onExpandedChange = { countryExpanded = it },
+                    // Right side: Country Dropdown
+                    ExposedDropdownMenuBox(
+                        expanded = countryExpanded,
+                        onExpandedChange = { countryExpanded = it },
+                        modifier = Modifier.width(180.dp) // Fixed width for country dropdown
+                    ) {
+                        OutlinedTextField(
+                            value = countries.find { it.first == country }?.second ?: "United Kingdom",
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("Country") },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = countryExpanded) },
                             modifier = Modifier
+                                .menuAnchor()
                                 .fillMaxWidth()
-//                        .focusRequester(countiesFocusRequester)
-//                        .onGloballyPositioned { coordinates ->
-//                            fieldPositions =
-//                                fieldPositions + ("country" to coordinates.boundsInWindow().top)
-//                            countryAutofillNode.boundingBox = coordinates.boundsInWindow()
-//                        }
-                        ) {
-                            OutlinedTextField(
-                                value = countries.find { it.first == country }?.second ?: "United Kingdom",
-                                onValueChange = {},
-                                readOnly = true,
-                                label = { Text("Country") },
-                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = countryExpanded) },
-                                modifier = Modifier
-                                    .menuAnchor()
-                                    .fillMaxWidth()
-                            )
+                        )
 
-                            ExposedDropdownMenu(
-                                expanded = countryExpanded,
-                                onDismissRequest = { countryExpanded = false }
-                            ) {
-                                countries.forEach { (code, countryName) ->
-                                    DropdownMenuItem(
-                                        text = { Text(countryName) },
-                                        onClick = {
-                                            country = code
-                                            countryExpanded = false
-                                        }
-                                    )
-                                }
+                        ExposedDropdownMenu(
+                            expanded = countryExpanded,
+                            onDismissRequest = { countryExpanded = false }
+                        ) {
+                            countries.forEach { (code, countryName) ->
+                                DropdownMenuItem(
+                                    text = { Text(countryName) },
+                                    onClick = {
+                                        country = code
+                                        countryExpanded = false
+                                    }
+                                )
                             }
                         }
-
                     }
                 }
 
@@ -418,33 +408,8 @@ fun CreateAccountDialog(
                         keyboardType = KeyboardType.Email,
                         imeAction = ImeAction.Next
                     ),
-//                    keyboardActions = KeyboardActions(
-//                        onNext = {
-//                            passwordFocusRequester.requestFocus()
-//                            scrollToField("password")
-//                        }
-//                    ),
                     isError = showDomainWarning,
-                    modifier = Modifier
-                        .fillMaxWidth()
-//                        .focusRequester(emailFocusRequester)
-//                        .onGloballyPositioned { coordinates ->
-//                            fieldPositions =
-//                                fieldPositions + ("email" to coordinates.boundsInWindow().top)
-//                            emailAutofillNode.boundingBox = coordinates.boundsInWindow()
-//                        }
-//                        .onFocusChanged { focusState ->
-//                            if (focusState.isFocused) {
-//                                scrollToField("email")
-//                            }
-//                            autofill?.apply {
-//                                if (focusState.isFocused && emailAutofillNode.boundingBox != null) {
-//                                    requestAutofillForNode(emailAutofillNode)
-//                                } else {
-//                                    cancelAutofillForNode(emailAutofillNode)
-//                                }
-//                            }
-//                        }
+                    modifier = Modifier.fillMaxWidth()
                 )
 
                 // Domain warning
@@ -467,12 +432,6 @@ fun CreateAccountDialog(
                         keyboardType = KeyboardType.Password,
                         imeAction = ImeAction.Next
                     ),
-//                    keyboardActions = KeyboardActions(
-//                        onNext = {
-//                            confirmPasswordFocusRequester.requestFocus()
-//                            scrollToField("confirmPassword")
-//                        }
-//                    ),
                     visualTransformation = if (passwordVisible)
                         VisualTransformation.None
                     else
@@ -489,26 +448,7 @@ fun CreateAccountDialog(
                         }
                     },
                     isError = password.isNotEmpty() && password.length < 6,
-                    modifier = Modifier
-                        .fillMaxWidth()
-//                        .focusRequester(passwordFocusRequester)
-//                        .onGloballyPositioned { coordinates ->
-//                            fieldPositions =
-//                                fieldPositions + ("password" to coordinates.boundsInWindow().top)
-//                            passwordAutofillNode.boundingBox = coordinates.boundsInWindow()
-//                        }
-//                        .onFocusChanged { focusState ->
-//                            if (focusState.isFocused) {
-//                                scrollToField("password")
-//                            }
-//                            autofill?.apply {
-//                                if (focusState.isFocused && passwordAutofillNode.boundingBox != null) {
-//                                    requestAutofillForNode(passwordAutofillNode)
-//                                } else {
-//                                    cancelAutofillForNode(passwordAutofillNode)
-//                                }
-//                            }
-//                        }
+                    modifier = Modifier.fillMaxWidth()
                 )
 
                 // Password length warning
@@ -531,12 +471,6 @@ fun CreateAccountDialog(
                         keyboardType = KeyboardType.Password,
                         imeAction = ImeAction.Next
                     ),
-//                    keyboardActions = KeyboardActions(
-//                        onNext = {
-//                            firstNameFocusRequester.requestFocus()
-//                            scrollToField("firstName")
-//                        }
-//                    ),
                     visualTransformation = if (confirmPasswordVisible)
                         VisualTransformation.None
                     else
@@ -553,18 +487,7 @@ fun CreateAccountDialog(
                         }
                     },
                     isError = !passwordsMatch,
-                    modifier = Modifier
-                        .fillMaxWidth()
-//                        .focusRequester(confirmPasswordFocusRequester)
-//                        .onGloballyPositioned { coordinates ->
-//                            fieldPositions =
-//                                fieldPositions + ("confirmPassword" to coordinates.boundsInWindow().top)
-//                        }
-//                        .onFocusChanged { focusState ->
-//                            if (focusState.isFocused) {
-//                                scrollToField("confirmPassword")
-//                            }
-//                        }
+                    modifier = Modifier.fillMaxWidth()
                 )
 
                 if (!passwordsMatch) {
@@ -575,7 +498,12 @@ fun CreateAccountDialog(
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
-                Row(horizontalArrangement = Arrangement.SpaceBetween ,verticalAlignment = Alignment.CenterVertically) {
+
+                // First Name and Last Name in a Row
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
                     // First Name Field
                     OutlinedTextField(
                         value = firstName,
@@ -587,31 +515,7 @@ fun CreateAccountDialog(
                             keyboardType = KeyboardType.Text,
                             imeAction = ImeAction.Next
                         ),
-//        keyboardActions = KeyboardActions(
-//            onNext = {
-//                lastNameFocusRequester.requestFocus()
-//                scrollToField("lastName")
-//            }
-//        ),
-                        modifier = Modifier
-                            .fillMaxWidth()
-//            .focusRequester(firstNameFocusRequester)
-//            .onGloballyPositioned { coordinates ->
-//                fieldPositions = fieldPositions + ("firstName" to coordinates.boundsInWindow().top)
-//                firstNameAutofillNode.boundingBox = coordinates.boundsInWindow()
-//            }
-//            .onFocusChanged { focusState ->
-//                if (focusState.isFocused) {
-//                    scrollToField("firstName")
-//                }
-//                autofill?.apply {
-//                    if (focusState.isFocused && firstNameAutofillNode.boundingBox != null) {
-//                        requestAutofillForNode(firstNameAutofillNode)
-//                    } else {
-//                        cancelAutofillForNode(firstNameAutofillNode)
-//                    }
-//                }
-//            }
+                        modifier = Modifier.weight(1f)
                     )
 
                     // Last Name Field
@@ -625,33 +529,10 @@ fun CreateAccountDialog(
                             keyboardType = KeyboardType.Text,
                             imeAction = ImeAction.Next
                         ),
-//        keyboardActions = KeyboardActions(
-//            onNext = {
-//                engineerNumberFocusRequester.requestFocus()
-//                scrollToField("engineerNumber")
-//            }
-//        ),
-                        modifier = Modifier
-                            .fillMaxWidth()
-//            .focusRequester(lastNameFocusRequester)
-//            .onGloballyPositioned { coordinates ->
-//                fieldPositions = fieldPositions + ("lastName" to coordinates.boundsInWindow().top)
-//                lastNameAutofillNode.boundingBox = coordinates.boundsInWindow()
-//            }
-//            .onFocusChanged { focusState ->
-//                if (focusState.isFocused) {
-//                    scrollToField("lastName")
-//                }
-//                autofill?.apply {
-//                    if (focusState.isFocused && lastNameAutofillNode.boundingBox != null) {
-//                        requestAutofillForNode(lastNameAutofillNode)
-//                    } else {
-//                        cancelAutofillForNode(lastNameAutofillNode)
-//                    }
-//                }
-//            }
+                        modifier = Modifier.weight(1f)
                     )
                 }
+
                 // Engineer Number Field
                 OutlinedTextField(
                     value = engineerNumber,
@@ -663,32 +544,7 @@ fun CreateAccountDialog(
                         keyboardType = KeyboardType.Number,
                         imeAction = ImeAction.Next
                     ),
-//                    keyboardActions = KeyboardActions(
-//                        onNext = {
-//                            phoneNumberFocusRequester.requestFocus()
-//                            scrollToField("phoneNumber")
-//                        }
-//                    ),
-                    modifier = Modifier
-                        .fillMaxWidth()
-//                        .focusRequester(engineerNumberFocusRequester)
-//                        .onGloballyPositioned { coordinates ->
-//                            fieldPositions =
-//                                fieldPositions + ("engineerNumber" to coordinates.boundsInWindow().top)
-//                            engineerNumberAutofillNode.boundingBox = coordinates.boundsInWindow()
-//                        }
-//                        .onFocusChanged { focusState ->
-//                            if (focusState.isFocused) {
-//                                scrollToField("engineerNumber")
-//                            }
-//                            autofill?.apply {
-//                                if (focusState.isFocused && engineerNumberAutofillNode.boundingBox != null) {
-//                                    requestAutofillForNode(engineerNumberAutofillNode)
-//                                } else {
-//                                    cancelAutofillForNode(engineerNumberAutofillNode)
-//                                }
-//                            }
-//                        }
+                    modifier = Modifier.fillMaxWidth()
                 )
 
                 if (engineerNumber.isNotEmpty() && engineerNumber.length < 5) {
@@ -710,32 +566,7 @@ fun CreateAccountDialog(
                         keyboardType = KeyboardType.Phone,
                         imeAction = ImeAction.Next
                     ),
-//                    keyboardActions = KeyboardActions(
-//                        onNext = {
-//                            asmFocusRequester.requestFocus()
-//                            scrollToField("asm")
-//                        }
-//                    ),
-                    modifier = Modifier
-                        .fillMaxWidth()
-//                        .focusRequester(phoneNumberFocusRequester)
-//                        .onGloballyPositioned { coordinates ->
-//                            fieldPositions =
-//                                fieldPositions + ("phoneNumber" to coordinates.boundsInWindow().top)
-//                            phoneAutofillNode.boundingBox = coordinates.boundsInWindow()
-//                        }
-//                        .onFocusChanged { focusState ->
-//                            if (focusState.isFocused) {
-//                                scrollToField("phoneNumber")
-//                            }
-//                            autofill?.apply {
-//                                if (focusState.isFocused && phoneAutofillNode.boundingBox != null) {
-//                                    requestAutofillForNode(phoneAutofillNode)
-//                                } else {
-//                                    cancelAutofillForNode(phoneAutofillNode)
-//                                }
-//                            }
-//                        }
+                    modifier = Modifier.fillMaxWidth()
                 )
 
                 // ASM Field
@@ -747,35 +578,9 @@ fun CreateAccountDialog(
                     isError = asm.isNotEmpty() && !asm.contains("@"),
                     keyboardOptions = KeyboardOptions(
                         keyboardType = KeyboardType.Email,
-                        imeAction = ImeAction.Next
+                        imeAction = ImeAction.Done
                     ),
-//                    keyboardActions = KeyboardActions(
-//                        onNext = {
-//                            countiesFocusRequester.requestFocus()
-//                            keyboardController?.hide()
-//                            scrollToField("country")
-//                        }
-//                    ),
-                    modifier = Modifier
-                        .fillMaxWidth()
-//                        .focusRequester(asmFocusRequester)
-//                        .onGloballyPositioned { coordinates ->
-//                            fieldPositions =
-//                                fieldPositions + ("asm" to coordinates.boundsInWindow().top)
-//                            asmAutofillNode.boundingBox = coordinates.boundsInWindow()
-//                        }
-//                        .onFocusChanged { focusState ->
-//                            if (focusState.isFocused) {
-//                                scrollToField("asm")
-//                            }
-//                            autofill?.apply {
-//                                if (focusState.isFocused && asmAutofillNode.boundingBox != null) {
-//                                    requestAutofillForNode(asmAutofillNode)
-//                                } else {
-//                                    cancelAutofillForNode(asmAutofillNode)
-//                                }
-//                            }
-//                        }
+                    modifier = Modifier.fillMaxWidth()
                 )
 
                 if (asm.isNotEmpty() && !asm.contains("@")) {
@@ -786,7 +591,6 @@ fun CreateAccountDialog(
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
-
 
                 // Error Message
                 if (state.errorMessage != null) {
