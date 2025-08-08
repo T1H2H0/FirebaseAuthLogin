@@ -13,8 +13,11 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
@@ -83,13 +86,7 @@ private const val TAG = "CreateAccountDialog"
 
 /**
  * Displays a Create Account dialog for Firebase authentication with Firestore integration.
- * Now includes proper keyboard navigation, scroll behavior, and working autofill.
- *
- * @param auth The Firebase authentication instance.
- * @param image An optional [ImageBitmap] to display in the dialog.
- * @param allowedEmailDomain The email domain required for account creation (e.g., "@company.com").
- * @param onDismiss Callback function triggered when the dialog is dismissed.
- * @param onAccountCreated Callback function triggered when account creation is successful.
+ * Fixed version with proper keyboard navigation and scroll behavior.
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalComposeUiApi::class)
 @Composable
@@ -124,7 +121,8 @@ fun CreateAccountDialog(
     val engineerNumberFocusRequester = remember { FocusRequester() }
     val phoneNumberFocusRequester = remember { FocusRequester() }
     val asmFocusRequester = remember { FocusRequester() }
-val countiesFocusRequester = remember { FocusRequester() }
+    val countiesFocusRequester = remember { FocusRequester() }
+
     // Form state
     var emailValue by remember { mutableStateOf(email) }
     var password by remember { mutableStateOf("") }
@@ -143,7 +141,7 @@ val countiesFocusRequester = remember { FocusRequester() }
     var passwordsMatch by remember { mutableStateOf(true) }
     var countryExpanded by remember { mutableStateOf(false) }
 
-    // Field positions for scrolling
+    // Field positions for scrolling - store actual Y coordinates
     var fieldPositions by remember { mutableStateOf(mapOf<String, Float>()) }
 
     // Autofill nodes
@@ -185,16 +183,17 @@ val countiesFocusRequester = remember { FocusRequester() }
     }
     val engineerNumberAutofillNode = remember {
         AutofillNode(
-            autofillTypes = listOf(AutofillType.Username), // Using a common type if custom isn't directly supported
+            autofillTypes = listOf(AutofillType.Username),
             onFill = { engineerNumber = it }
         )
     }
-val asmAutofillNode = remember {
-    AutofillNode(
-        autofillTypes = listOf(AutofillType.EmailAddress),
-        onFill = { asm = it }
-    )
-}
+    val asmAutofillNode = remember {
+        AutofillNode(
+            autofillTypes = listOf(AutofillType.EmailAddress),
+            onFill = { asm = it }
+        )
+    }
+
     // Country options
     val countries = listOf(
         "GB" to "United Kingdom",
@@ -209,13 +208,29 @@ val asmAutofillNode = remember {
         "BE" to "Belgium"
     )
 
-    // Helper function to scroll to focused field
+    // Improved helper function to scroll to focused field
     fun scrollToField(fieldKey: String) {
         coroutineScope.launch {
-            delay(150) // Delay to ensure keyboard is shown and layout is settled
-            fieldPositions[fieldKey]?.let { position ->
-                val targetScroll = (position - 200f).coerceAtLeast(0f).coerceAtMost(scrollState.maxValue.toFloat())
-                scrollState.animateScrollTo(targetScroll.toInt())
+            // Give keyboard time to appear
+            delay(300)
+
+            fieldPositions[fieldKey]?.let { fieldTop ->
+                // Get keyboard height from IME insets
+                val imeInsets = WindowInsets.ime
+                val keyboardHeight = with(density) { imeInsets.getBottom(density).toDp() }
+
+                // Calculate visible area (screen height minus keyboard)
+                val screenHeight = with(density) {
+                    context.resources.displayMetrics.heightPixels.toDp()
+                }
+                val visibleHeight = screenHeight - keyboardHeight
+
+                // Calculate target scroll position
+                // We want the field to be in the upper third of visible area
+                val targetVisiblePosition = visibleHeight * 0.3f
+                val scrollTarget = (fieldTop / density.density - targetVisiblePosition.value).coerceAtLeast(0f)
+
+                scrollState.animateScrollTo(scrollTarget.toInt())
             }
         }
     }
@@ -282,7 +297,6 @@ val asmAutofillNode = remember {
                 engineerNumber.length >= 5 &&
                 asm.isNotBlank() &&
                 asm.contains("@") &&
-
                 passwordsMatch &&
                 !showDomainWarning
     }
@@ -292,15 +306,15 @@ val asmAutofillNode = remember {
         properties = DialogProperties(
             usePlatformDefaultWidth = false,
             dismissOnClickOutside = true,
-            decorFitsSystemWindows = true
+            decorFitsSystemWindows = false // Important: let us handle insets
         )
     ) {
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .fillMaxHeight(0.95f)
-                .padding(16.dp)
-                .windowInsetsPadding(WindowInsets.ime)
+                .fillMaxHeight(0.98f) // Slightly more height
+                .padding(horizontal = 16.dp, vertical = 8.dp)
+                .imePadding() // This handles keyboard padding automatically
                 .pointerInput(Unit) {
                     detectTapGestures(onTap = {
                         focusManager.clearFocus()
@@ -310,9 +324,9 @@ val asmAutofillNode = remember {
         ) {
             Column(
                 modifier = Modifier
-                    .padding(16.dp)
                     .fillMaxWidth()
-                    .verticalScroll(scrollState),
+                    .verticalScroll(scrollState)
+                    .padding(16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
@@ -379,6 +393,9 @@ val asmAutofillNode = remember {
                             emailAutofillNode.boundingBox = coordinates.boundsInWindow()
                         }
                         .onFocusChanged { focusState ->
+                            if (focusState.isFocused) {
+                                scrollToField("email")
+                            }
                             autofill?.apply {
                                 if (focusState.isFocused && emailAutofillNode.boundingBox != null) {
                                     requestAutofillForNode(emailAutofillNode)
@@ -439,6 +456,9 @@ val asmAutofillNode = remember {
                             passwordAutofillNode.boundingBox = coordinates.boundsInWindow()
                         }
                         .onFocusChanged { focusState ->
+                            if (focusState.isFocused) {
+                                scrollToField("password")
+                            }
                             autofill?.apply {
                                 if (focusState.isFocused && passwordAutofillNode.boundingBox != null) {
                                     requestAutofillForNode(passwordAutofillNode)
@@ -497,6 +517,11 @@ val asmAutofillNode = remember {
                         .onGloballyPositioned { coordinates ->
                             fieldPositions = fieldPositions + ("confirmPassword" to coordinates.boundsInWindow().top)
                         }
+                        .onFocusChanged { focusState ->
+                            if (focusState.isFocused) {
+                                scrollToField("confirmPassword")
+                            }
+                        }
                 )
 
                 if (!passwordsMatch) {
@@ -533,6 +558,9 @@ val asmAutofillNode = remember {
                             firstNameAutofillNode.boundingBox = coordinates.boundsInWindow()
                         }
                         .onFocusChanged { focusState ->
+                            if (focusState.isFocused) {
+                                scrollToField("firstName")
+                            }
                             autofill?.apply {
                                 if (focusState.isFocused && firstNameAutofillNode.boundingBox != null) {
                                     requestAutofillForNode(firstNameAutofillNode)
@@ -568,6 +596,9 @@ val asmAutofillNode = remember {
                             lastNameAutofillNode.boundingBox = coordinates.boundsInWindow()
                         }
                         .onFocusChanged { focusState ->
+                            if (focusState.isFocused) {
+                                scrollToField("lastName")
+                            }
                             autofill?.apply {
                                 if (focusState.isFocused && lastNameAutofillNode.boundingBox != null) {
                                     requestAutofillForNode(lastNameAutofillNode)
@@ -577,7 +608,6 @@ val asmAutofillNode = remember {
                             }
                         }
                 )
-
 
                 // Engineer Number Field
                 OutlinedTextField(
@@ -602,18 +632,22 @@ val asmAutofillNode = remember {
                         .onGloballyPositioned { coordinates ->
                             fieldPositions = fieldPositions + ("engineerNumber" to coordinates.boundsInWindow().top)
                             engineerNumberAutofillNode.boundingBox = coordinates.boundsInWindow()
-                        }                        .onFocusChanged { focusState ->
+                        }
+                        .onFocusChanged { focusState ->
+                            if (focusState.isFocused) {
+                                scrollToField("engineerNumber")
+                            }
                             autofill?.apply {
                                 if (focusState.isFocused && engineerNumberAutofillNode.boundingBox != null) {
                                     requestAutofillForNode(engineerNumberAutofillNode)
-                                }else{
+                                } else {
                                     cancelAutofillForNode(engineerNumberAutofillNode)
-
-                                }                                }
+                                }
+                            }
                         }
+                )
 
-                        )
-                if (!engineerNumber.isNotEmpty() && engineerNumber.length < 5) {
+                if (engineerNumber.isNotEmpty() && engineerNumber.length < 5) {
                     Text(
                         text = "Please Enter a Valid Engineer Number",
                         color = MaterialTheme.colorScheme.error,
@@ -634,7 +668,6 @@ val asmAutofillNode = remember {
                     ),
                     keyboardActions = KeyboardActions(
                         onNext = {
-
                             asmFocusRequester.requestFocus()
                             scrollToField("asm")
                         }
@@ -647,6 +680,9 @@ val asmAutofillNode = remember {
                             phoneAutofillNode.boundingBox = coordinates.boundsInWindow()
                         }
                         .onFocusChanged { focusState ->
+                            if (focusState.isFocused) {
+                                scrollToField("phoneNumber")
+                            }
                             autofill?.apply {
                                 if (focusState.isFocused && phoneAutofillNode.boundingBox != null) {
                                     requestAutofillForNode(phoneAutofillNode)
@@ -656,9 +692,6 @@ val asmAutofillNode = remember {
                             }
                         }
                 )
-
-                // Country Dropdown
-
 
                 // ASM Field
                 OutlinedTextField(
@@ -683,18 +716,23 @@ val asmAutofillNode = remember {
                         .focusRequester(asmFocusRequester)
                         .onGloballyPositioned { coordinates ->
                             fieldPositions = fieldPositions + ("asm" to coordinates.boundsInWindow().top)
-                        }.onFocusChanged { focusState ->
-                        autofill?.apply {
-                            if (focusState.isFocused && asmAutofillNode.boundingBox != null) {
-                                requestAutofillForNode(asmAutofillNode)
-                            } else {
-                                cancelAutofillForNode(asmAutofillNode)
+                            asmAutofillNode.boundingBox = coordinates.boundsInWindow()
+                        }
+                        .onFocusChanged { focusState ->
+                            if (focusState.isFocused) {
+                                scrollToField("asm")
+                            }
+                            autofill?.apply {
+                                if (focusState.isFocused && asmAutofillNode.boundingBox != null) {
+                                    requestAutofillForNode(asmAutofillNode)
+                                } else {
+                                    cancelAutofillForNode(asmAutofillNode)
+                                }
                             }
                         }
+                )
 
-                        }
-                        )
-                if (!asm.isNotEmpty() && !asm.contains("@")) {
+                if (asm.isNotEmpty() && !asm.contains("@")) {
                     Text(
                         text = "ASM must be a valid email address",
                         color = MaterialTheme.colorScheme.error,
@@ -703,18 +741,16 @@ val asmAutofillNode = remember {
                     )
                 }
 
-
+                // Country Dropdown
                 ExposedDropdownMenuBox(
                     expanded = countryExpanded,
                     onExpandedChange = { countryExpanded = it },
                     modifier = Modifier
                         .fillMaxWidth()
                         .focusRequester(countiesFocusRequester)
-
                         .onGloballyPositioned { coordinates ->
                             fieldPositions = fieldPositions + ("country" to coordinates.boundsInWindow().top)
                             countryAutofillNode.boundingBox = coordinates.boundsInWindow()
-
                         }
                 ) {
                     OutlinedTextField(
@@ -738,12 +774,12 @@ val asmAutofillNode = remember {
                                 onClick = {
                                     country = code
                                     countryExpanded = false
-
                                 }
                             )
                         }
                     }
                 }
+
                 // Error Message
                 if (state.errorMessage != null) {
                     Text(
@@ -757,7 +793,8 @@ val asmAutofillNode = remember {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(60.dp), // Fixed height to prevent layout shift
+                        .height(60.dp) // Fixed height to prevent layout shift
+                        .padding(top = 16.dp), // Extra spacing from form
                     horizontalArrangement = Arrangement.End,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
