@@ -306,7 +306,7 @@ fun CreateAccountDialog(
         properties = DialogProperties(
             usePlatformDefaultWidth = false,
             dismissOnClickOutside = true,
-            decorFitsSystemWindows = true // Important: let us handle insets
+            decorFitsSystemWindows = false // Important: let us handle insets
         )
     ) {
         Card(
@@ -389,7 +389,7 @@ fun CreateAccountDialog(
                 }
                 Text(
                     text = "Create Account",
-                    style = MaterialTheme.typography.headlineSmall
+                    style = MaterialTheme.typography.bodyMedium
                 )
                 // Domain requirement info
                 if (allowedEmailDomain.isNotEmpty()) {
@@ -423,75 +423,80 @@ fun CreateAccountDialog(
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    // Password Field
+                    OutlinedTextField(
+                        value = password,
+                        onValueChange = { password = it },
+                        label = { Text("Password * (min. 6 characters)") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Password,
+                            imeAction = ImeAction.Next
+                        ),
+                        visualTransformation = if (passwordVisible)
+                            VisualTransformation.None
+                        else
+                            PasswordVisualTransformation(),
+                        trailingIcon = {
+                            IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                                Icon(
+                                    imageVector = if (passwordVisible)
+                                        Icons.Default.Visibility
+                                    else
+                                        Icons.Default.VisibilityOff,
+                                    contentDescription = if (passwordVisible) "Hide password" else "Show password"
+                                )
+                            }
+                        },
+                        isError = password.isNotEmpty() && password.length < 6,
+                        modifier = Modifier.fillMaxWidth()
+                    )
 
-                // Password Field
-                OutlinedTextField(
-                    value = password,
-                    onValueChange = { password = it },
-                    label = { Text("Password * (min. 6 characters)") },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(
-                        keyboardType = KeyboardType.Password,
-                        imeAction = ImeAction.Next
-                    ),
-                    visualTransformation = if (passwordVisible)
-                        VisualTransformation.None
-                    else
-                        PasswordVisualTransformation(),
-                    trailingIcon = {
-                        IconButton(onClick = { passwordVisible = !passwordVisible }) {
-                            Icon(
-                                imageVector = if (passwordVisible)
-                                    Icons.Default.Visibility
-                                else
-                                    Icons.Default.VisibilityOff,
-                                contentDescription = if (passwordVisible) "Hide password" else "Show password"
-                            )
-                        }
-                    },
-                    isError = password.isNotEmpty() && password.length < 6,
-                    modifier = Modifier.fillMaxWidth()
-                )
+                    // Password length warning
+                    if (password.isNotEmpty() && password.length < 6) {
+                        Text(
+                            text = "Password must be at least 6 characters",
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
 
-                // Password length warning
-                if (password.isNotEmpty() && password.length < 6) {
-                    Text(
-                        text = "Password must be at least 6 characters",
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodySmall,
+                    // Confirm Password Field
+                    OutlinedTextField(
+                        value = confirmPassword,
+                        onValueChange = { confirmPassword = it },
+                        label = { Text("Confirm Password *") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Password,
+                            imeAction = ImeAction.Next
+                        ),
+                        visualTransformation = if (confirmPasswordVisible)
+                            VisualTransformation.None
+                        else
+                            PasswordVisualTransformation(),
+                        trailingIcon = {
+                            IconButton(onClick = {
+                                confirmPasswordVisible = !confirmPasswordVisible
+                            }) {
+                                Icon(
+                                    imageVector = if (confirmPasswordVisible)
+                                        Icons.Default.Visibility
+                                    else
+                                        Icons.Default.VisibilityOff,
+                                    contentDescription = if (confirmPasswordVisible) "Hide password" else "Show password"
+                                )
+                            }
+                        },
+                        isError = !passwordsMatch,
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
-
-                // Confirm Password Field
-                OutlinedTextField(
-                    value = confirmPassword,
-                    onValueChange = { confirmPassword = it },
-                    label = { Text("Confirm Password *") },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(
-                        keyboardType = KeyboardType.Password,
-                        imeAction = ImeAction.Next
-                    ),
-                    visualTransformation = if (confirmPasswordVisible)
-                        VisualTransformation.None
-                    else
-                        PasswordVisualTransformation(),
-                    trailingIcon = {
-                        IconButton(onClick = { confirmPasswordVisible = !confirmPasswordVisible }) {
-                            Icon(
-                                imageVector = if (confirmPasswordVisible)
-                                    Icons.Default.Visibility
-                                else
-                                    Icons.Default.VisibilityOff,
-                                contentDescription = if (confirmPasswordVisible) "Hide password" else "Show password"
-                            )
-                        }
-                    },
-                    isError = !passwordsMatch,
-                    modifier = Modifier.fillMaxWidth()
-                )
-
                 if (!passwordsMatch) {
                     Text(
                         text = "Passwords do not match",
