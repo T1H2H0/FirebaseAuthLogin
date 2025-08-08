@@ -351,17 +351,14 @@ fun CreateAccountDialog(
                                 contentDescription = "Logo"
                             )
                         }
-                        Text(
-                            text = "Create Account",
-                            style = MaterialTheme.typography.headlineSmall
-                        )
+
                     }
 
                     // Right side: Country Dropdown
                     ExposedDropdownMenuBox(
                         expanded = countryExpanded,
                         onExpandedChange = { countryExpanded = it },
-                        modifier = Modifier.width(250.dp) // Fixed width for country dropdown
+                        modifier = Modifier.width(210.dp) // Fixed width for country dropdown
                     ) {
                         OutlinedTextField(
                             value = countries.find { it.first == country }?.second ?: "United Kingdom",
@@ -390,7 +387,10 @@ fun CreateAccountDialog(
                         }
                     }
                 }
-
+                Text(
+                    text = "Create Account",
+                    style = MaterialTheme.typography.headlineSmall
+                )
                 // Domain requirement info
                 if (allowedEmailDomain.isNotEmpty()) {
                     Text(
