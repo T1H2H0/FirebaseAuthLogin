@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.width
@@ -311,7 +312,8 @@ fun CreateAccountDialog(
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .fillMaxHeight(0.98f) // Slightly more height
+                .windowInsetsPadding(WindowInsets.safeDrawing)
+
                 .padding(horizontal = 16.dp, vertical = 8.dp)
                 .imePadding() // This handles keyboard padding automatically
                 .pointerInput(Unit) {
@@ -359,7 +361,7 @@ fun CreateAccountDialog(
                     ExposedDropdownMenuBox(
                         expanded = countryExpanded,
                         onExpandedChange = { countryExpanded = it },
-                        modifier = Modifier.width(180.dp) // Fixed width for country dropdown
+                        modifier = Modifier.width(250.dp) // Fixed width for country dropdown
                     ) {
                         OutlinedTextField(
                             value = countries.find { it.first == country }?.second ?: "United Kingdom",
