@@ -116,7 +116,7 @@ fun FirebaseSignInDialog(
     val autofill = LocalAutofill.current
     val context = LocalContext.current
     val activity = context as? Activity
-    val showDomainWarning by rememberSaveable {
+    val showDomainWarning by remember {
         derivedStateOf {
             allowedEmailDomain.isNotEmpty() &&
                     state.email.isNotEmpty() &&
@@ -130,7 +130,7 @@ fun FirebaseSignInDialog(
     var isForgotPasswordMode by remember { mutableStateOf(false) }
 
     // Track email domain validation
-    var showCreateDialog = rememberSaveable { mutableStateOf(false) }
+    var showCreateDialog = remember { mutableStateOf(false) }
 
     // Track if components are positioned for autofill
     var emailFieldPositioned by remember { mutableStateOf(false) }
