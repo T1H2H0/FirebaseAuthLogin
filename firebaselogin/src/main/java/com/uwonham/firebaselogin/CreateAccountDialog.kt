@@ -42,6 +42,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -208,6 +209,11 @@ fun CreateAccountDialog(
         "BE" to "Belgium"
     )
 
+    val imeInsets = WindowInsets.ime
+    val isKeyboardVisible by remember {
+        derivedStateOf { imeInsets.getBottom(density) > 0 }
+    }
+
     // Improved helper function to scroll to focused field
     fun scrollToField(fieldKey: String) {
         coroutineScope.launch {
@@ -215,20 +221,10 @@ fun CreateAccountDialog(
             delay(300)
 
             fieldPositions[fieldKey]?.let { fieldTop ->
-                // Get keyboard height from IME insets
-                val imeInsets = WindowInsets.ime
-                val keyboardHeight = with(density) { imeInsets.getBottom(density).toDp() }
-
-                // Calculate visible area (screen height minus keyboard)
-                val screenHeight = with(density) {
-                    context.resources.displayMetrics.heightPixels.toDp()
-                }
-                val visibleHeight = screenHeight - keyboardHeight
-
-                // Calculate target scroll position
-                // We want the field to be in the upper third of visible area
-                val targetVisiblePosition = visibleHeight * 0.3f
-                val scrollTarget = (fieldTop / density.density - targetVisiblePosition.value).coerceAtLeast(0f)
+                // Calculate scroll position to keep field visible above keyboard
+                // Use a simple offset approach since we can't access WindowInsets here
+                val keyboardOffset = if (isKeyboardVisible) 400f else 0f // Approximate keyboard height
+                val scrollTarget = (fieldTop - keyboardOffset).coerceAtLeast(0f)
 
                 scrollState.animateScrollTo(scrollTarget.toInt())
             }
