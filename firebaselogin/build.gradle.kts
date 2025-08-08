@@ -61,8 +61,8 @@ dependencies {
 
     implementation("com.google.firebase:firebase-auth:23.2.0")
 
-    implementation("com.google.firebase:firebase-firestore:25.1.2")
-
+    implementation("com.google.firebase:firebase-firestore:26.0.0")
+implementation("com.google.firebase:firebase-messaging:25.0.0")
     //hilt
     implementation("com.google.dagger:hilt-android:2.52")
     implementation("androidx.hilt:hilt-navigation-compose:1.2.0")
@@ -88,7 +88,7 @@ afterEvaluate {
                 from(components["release"])
                 groupId = "com.t1h2h0"
                 artifactId = "firebaselogin"
-                version = "1.1.38"
+                version = "1.1.39"
 
             }
         }

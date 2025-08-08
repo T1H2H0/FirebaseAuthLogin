@@ -17,9 +17,9 @@ import com.google.firebase.auth.FirebaseAuthException
 
 import com.uwonham.firebaselogin.utils.SignInResult
 import com.uwonham.firebaselogin.utils.SignInState
-import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.auth.FirebaseUser
-import com.google.firebase.firestore.SetOptions
+import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.messaging.FirebaseMessaging
 
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -28,6 +28,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.tasks.await
 import javax.inject.Inject
 import javax.inject.Named
@@ -45,7 +46,8 @@ data class UserData(
     val asm: String = "",
     val role: String = "NEWUSER",
     val deActivated: Boolean? = false,
-    val deactive: Boolean? = false
+    val deactive: Boolean? = false,
+    val msgtoken:String? = "",
 )
 
 @HiltViewModel
@@ -420,14 +422,16 @@ else{
             if (_state.value.auth?.currentUser == null) {
                 throw Exception("User not authenticated, cannot create Firestore document")
             }
-
+            val fcmToken = getFcmTokenWithAwait()
             val userDocRef = firestore.collection("Users").document(userEmail)
 
             // Create user document with provided data (excluding password for security)
             val finalUserData = userData.copy(
                 email = userEmail,
                 password = "", // Don't store password in Firestore
-                photo = if (userData.photo.isEmpty()) generateAutoPhoto(userEmail) else userData.photo
+                photo = if (userData.photo.isEmpty()) generateAutoPhoto(userEmail) else userData.photo,
+                msgtoken = fcmToken,
+
             )
 
             userDocRef.set(finalUserData).await()
@@ -442,7 +446,14 @@ else{
             throw e
         }
     }
-
+    private suspend fun getFcmTokenWithAwait(): String {
+        return try {
+            FirebaseMessaging.getInstance().token.await()
+        } catch (e: Exception) {
+            Log.w(TAG, "Fetching FCM registration token failed", e)
+            ""
+        }
+    }
 //    private suspend fun createUserIfNotExists(user: FirebaseUser) {
 //        try {
 //            val userEmail = user.email ?: return
