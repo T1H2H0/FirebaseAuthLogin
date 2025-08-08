@@ -177,7 +177,7 @@ fun FirebaseSignInDialog(
         properties = DialogProperties(
             usePlatformDefaultWidth = false,
             dismissOnClickOutside = true,
-            decorFitsSystemWindows = true // Changed to true for better edge-to-edge support
+            decorFitsSystemWindows = false // Changed to true for better edge-to-edge support
         )
     ) {
         Box(
