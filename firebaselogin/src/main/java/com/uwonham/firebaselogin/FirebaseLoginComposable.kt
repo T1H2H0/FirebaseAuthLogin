@@ -43,6 +43,7 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
@@ -115,7 +116,7 @@ fun FirebaseSignInDialog(
     val autofill = LocalAutofill.current
     val context = LocalContext.current
     val activity = context as? Activity
-    val showDomainWarning by remember {
+    val showDomainWarning by rememberSaveable {
         derivedStateOf {
             allowedEmailDomain.isNotEmpty() &&
                     state.email.isNotEmpty() &&
@@ -129,7 +130,7 @@ fun FirebaseSignInDialog(
     var isForgotPasswordMode by remember { mutableStateOf(false) }
 
     // Track email domain validation
-    var showCreateDialog = remember { mutableStateOf(false) }
+    var showCreateDialog = rememberSaveable { mutableStateOf(false) }
 
     // Track if components are positioned for autofill
     var emailFieldPositioned by remember { mutableStateOf(false) }

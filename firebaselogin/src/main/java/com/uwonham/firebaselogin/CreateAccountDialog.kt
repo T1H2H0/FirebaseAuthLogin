@@ -306,7 +306,7 @@ fun CreateAccountDialog(
         properties = DialogProperties(
             usePlatformDefaultWidth = false,
             dismissOnClickOutside = true,
-            decorFitsSystemWindows = false // Important: let us handle insets
+            decorFitsSystemWindows = true // Important: let us handle insets
         )
     ) {
         Card(
