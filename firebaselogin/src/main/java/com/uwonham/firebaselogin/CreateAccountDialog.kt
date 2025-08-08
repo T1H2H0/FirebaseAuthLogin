@@ -418,7 +418,7 @@ fun CreateAccountDialog(
                     OutlinedTextField(
                         value = password,
                         onValueChange = { password = it },
-                        label = { Text("Password * (min. 6 characters)") },
+                        label = { Text("Password * ") },
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(
                             keyboardType = KeyboardType.Password,
@@ -442,15 +442,7 @@ fun CreateAccountDialog(
                         isError = password.isNotEmpty() && password.length < 6,
                         modifier = Modifier.weight(1f)                    )
 
-                    // Password length warning
-                    if (password.isNotEmpty() && password.length < 6) {
-                        Text(
-                            text = "Password must be at least 6 characters",
-                            color = MaterialTheme.colorScheme.error,
-                            style = MaterialTheme.typography.bodySmall,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    }
+
 
                     // Confirm Password Field
                     OutlinedTextField(
@@ -482,15 +474,28 @@ fun CreateAccountDialog(
                         isError = !passwordsMatch,
                         modifier = Modifier.weight(1f)                    )
                 }
-                if (!passwordsMatch) {
-                    Text(
-                        text = "Passwords do not match",
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    // Password length warning
+                    if (password.isNotEmpty() && password.length < 6) {
+                        Text(
+                            text = "Password must be at least 6 characters",
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall,
 
+                            )
+                    }
+                    if (!passwordsMatch) {
+                        Text(
+                            text = "Passwords do not match",
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
                 // First Name and Last Name in a Row
                 Row(
                     modifier = Modifier.fillMaxWidth(),
