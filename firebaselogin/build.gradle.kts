@@ -9,7 +9,7 @@ plugins {
 
 android {
     namespace = "com.uwonham.firebaselogin"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         minSdk = 26
@@ -32,7 +32,7 @@ android {
         targetCompatibility = JavaVersion.VERSION_11
     }
     kotlinOptions {
-        jvmTarget = "11"
+        jvmTarget = "17"
     }
     buildFeatures {
         compose =true
@@ -88,7 +88,7 @@ afterEvaluate {
                 from(components["release"])
                 groupId = "com.t1h2h0"
                 artifactId = "firebaselogin"
-                version = "1.1.52"
+                version = "1.1.53"
 
             }
         }
