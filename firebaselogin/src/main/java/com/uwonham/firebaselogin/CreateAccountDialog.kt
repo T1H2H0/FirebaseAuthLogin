@@ -90,7 +90,7 @@ fun CreateAccountDialog(
     onDismiss: () -> Unit,
     onAccountCreated: (user: com.google.firebase.auth.FirebaseUser) -> Unit,
 ) {
-    val viewModel: LoginViewModel = hiltViewModel()
+    val viewModel: FirebaseLoginViewModel = hiltViewModel()
     val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val activity = context as? Activity

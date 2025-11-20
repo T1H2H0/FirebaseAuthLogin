@@ -28,7 +28,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.tasks.await
 import javax.inject.Inject
 import javax.inject.Named
@@ -51,7 +50,7 @@ data class UserData(
 )
 
 @HiltViewModel
-class LoginViewModel @Inject constructor(
+class FirebaseLoginViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     @Named("AuthPrefs")
     private val sharedPreferences: SharedPreferences,
