@@ -41,10 +41,12 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshots.SnapshotStateMap
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
@@ -89,6 +91,7 @@ fun CreateAccountDialog(
     allowedEmailDomain: String = "",
     onDismiss: () -> Unit,
     onAccountCreated: (user: com.google.firebase.auth.FirebaseUser) -> Unit,
+    customContent: @Composable (customData: SnapshotStateMap<String, Any?>) -> Unit = {}
 ) {
     val viewModel: FirebaseLoginViewModel = hiltViewModel()
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -132,7 +135,7 @@ fun CreateAccountDialog(
     var showDomainWarning by remember { mutableStateOf(false) }
     var passwordsMatch by remember { mutableStateOf(true) }
     var countryExpanded by remember { mutableStateOf(false) }
-
+    val customData = remember { mutableStateMapOf<String, Any?>() }
     // Field positions for scrolling - store actual Y coordinates
     var fieldPositions by remember { mutableStateOf(mapOf<String, Float>()) }
 
@@ -529,7 +532,9 @@ fun CreateAccountDialog(
                         modifier = Modifier.weight(1f)
                     )
                 }
-
+if(customContent != {}){
+                    customContent(customData)
+}
                 // Engineer Number Field
                 OutlinedTextField(
                     value = engineerNumber,
@@ -626,6 +631,7 @@ fun CreateAccountDialog(
                                 Log.d(TAG, "Creating account for: $emailValue")
 
                                 val userData = UserData(
+                                    uid = ""  ,
                                     email = emailValue,
                                     password = password,
                                     engineernumber = engineerNumber,
@@ -636,7 +642,8 @@ fun CreateAccountDialog(
                                     asm = asm,
                                     role = "NEWUSER",
                                     deActivated = false,
-                                    deactive = false
+                                    deactive = false,
+                                    customData = customData.toMap()
                                 )
 
                                 viewModel.createAccount(userData)
@@ -660,6 +667,12 @@ fun CreateAccountDialog(
         }
     }
 }
+
+//@Composable
+//fun customFields(modifier: Modifier = Modifier,customData = customData) {
+//
+//}
+
 
 //@Preview
 //@Composable
