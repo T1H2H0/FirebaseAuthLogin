@@ -40,11 +40,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshots.SnapshotStateMap
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.autofill.AutofillNode
 import androidx.compose.ui.autofill.AutofillType
+import androidx.compose.ui.autofill.ContentType
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.platform.LocalAutofill
 import androidx.compose.ui.platform.LocalContext
@@ -56,6 +58,8 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.semantics.contentType
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -73,6 +77,8 @@ private const val TAG = "FirebaseLoginComposable"
  * @param allowedEmailDomain The email domain required for user creation (e.g., "@company.com").
  * @param onDismiss Callback function triggered when the dialog is dismissed.
  * @param onSignInSuccess Callback function triggered when sign-in is successful, providing the signed-in [FirebaseUser].
+ * @param customContent A composable function to customize the content of the dialog to pass to the account creation .
+ *
  *
  * ### Example Usage:
  * ```
@@ -90,7 +96,21 @@ private const val TAG = "FirebaseLoginComposable"
  *         onSignInSuccess = { user ->
  *             Log.d(TAG, "Login successful: $user")
  *             viewModel.userLoggedIn(user)
- *         }
+ *         }  customContent = { customData ->
+ *                var microsoftNumber by remember { mutableStateOf("") }
+ *
+ *
+ *                OutlinedTextField(
+ *                    value = microsoftNumber,
+ *                    onValueChange = {
+ *                        microsoftNumber = it
+ *                        customData["microsoftNumber"] = it
+ *                    },
+ *                    label = { Text("MicroSoftNumber") },
+ *                    modifier = Modifier.fillMaxWidth()
+ *                )
+ *                )
+ *            }
  *     )
  * }
  * ```
@@ -104,6 +124,7 @@ fun FirebaseSignInDialog(
     allowedEmailDomain: String = "",
     onDismiss: () -> Unit,
     onSignInSuccess: (user: com.google.firebase.auth.FirebaseUser) -> Unit,
+    customContent: @Composable (customData: SnapshotStateMap<String, Any?>) -> Unit = {}
 ) {
     val viewModel: FirebaseLoginViewModel = hiltViewModel()
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -299,6 +320,8 @@ fun FirebaseSignInDialog(
                                 isError = showDomainWarning && allowedEmailDomain.isNotEmpty(),
                                 modifier = Modifier
                                     .fillMaxWidth()
+                                    .semantics { contentType = ContentType.EmailAddress }
+
                                     .onGloballyPositioned {
                                         emailFieldPositioned = true
                                     }
@@ -357,7 +380,8 @@ fun FirebaseSignInDialog(
                                         ).show()
                                         showCreateDialog.value = false
                                         viewModel.checkAccountExists(state.email)
-                                    }
+                                    },
+                                    customContent = customContent
                                 )
                             }
 

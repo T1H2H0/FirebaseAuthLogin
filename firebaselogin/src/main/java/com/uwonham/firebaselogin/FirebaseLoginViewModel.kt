@@ -35,6 +35,7 @@ import javax.inject.Named
 private const val TAG = "LibraryLoginViewModel"
 
 data class UserData(
+    val uid: String = "",
     val email: String = "",
     val password: String = "", // ADD PASSWORD FIELD
     val engineernumber: String = "",
@@ -47,6 +48,8 @@ data class UserData(
     val deActivated: Boolean? = false,
     val deactive: Boolean? = false,
     val msgtoken:String? = "",
+    val customData: Map<String, @JvmSuppressWildcards Any?> = emptyMap()
+
 )
 
 @HiltViewModel
@@ -426,6 +429,7 @@ else{
 
             // Create user document with provided data (excluding password for security)
             val finalUserData = userData.copy(
+                uid = user.uid,
                 email = userEmail,
                 password = "", // Don't store password in Firestore
                 photo = if (userData.photo.isEmpty()) generateAutoPhoto(userEmail) else userData.photo,
@@ -433,7 +437,23 @@ else{
 
             )
 
-            userDocRef.set(finalUserData).await()
+            val docData = mutableMapOf<String, Any?>(
+                "uid" to finalUserData.uid,
+                "email" to finalUserData.email,
+                "engineernumber" to finalUserData.engineernumber,
+                "country" to finalUserData.country,
+                "name" to finalUserData.name,
+                "photo" to finalUserData.photo,
+                "phonenumber" to finalUserData.phonenumber,
+                "asm" to finalUserData.asm,
+                "role" to finalUserData.role,
+                "deActivated" to finalUserData.deActivated,
+                "deactive" to finalUserData.deactive,
+                "msgtoken" to finalUserData.msgtoken
+            )
+            docData.putAll(finalUserData.customData) // flattens instead of nesting
+
+            userDocRef.set(docData).await()
             Log.d(TAG, "createFirestoreUser: User document created successfully for: $userEmail")
 
         } catch (e: Exception) {

@@ -4,10 +4,14 @@ import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.Button
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Modifier
 import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
@@ -41,7 +45,20 @@ class Login : ComponentActivity() {
 //                        Log.d(TAG, "Login successful: $user")
 //                        // User account automatically created in Firestore if email matches domain
 //                        viewModel.userLoggedIn(user)
-//                    }
+//                    },
+//            customContent = { customData ->
+//                var microsoftNumber by remember { mutableStateOf("") }
+//
+//
+//                OutlinedTextField(
+//                    value = microsoftNumber,
+//                    onValueChange = {
+//                        microsoftNumber = it
+//                        customData["microsoftNumber"] = it
+//                    },
+//                    label = { Text("MicroSoftNumber") },
+//                    modifier = Modifier.fillMaxWidth()
+//                )
 //                )
 //            }
 
