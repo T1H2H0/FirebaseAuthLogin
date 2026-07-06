@@ -124,6 +124,7 @@ fun FirebaseSignInDialog(
     allowedEmailDomain: String = "",
     onDismiss: () -> Unit,
     onSignInSuccess: (user: com.google.firebase.auth.FirebaseUser) -> Unit,
+    requiredCustomFields: List<String> = emptyList(),
     customContent: @Composable (customData: SnapshotStateMap<String, Any?>) -> Unit = {}
 ) {
     val viewModel: FirebaseLoginViewModel = hiltViewModel()
@@ -381,6 +382,8 @@ fun FirebaseSignInDialog(
                                         showCreateDialog.value = false
                                         viewModel.checkAccountExists(state.email)
                                     },
+                                    requiredCustomFields =  requiredCustomFields,
+
                                     customContent = customContent
                                 )
                             }
