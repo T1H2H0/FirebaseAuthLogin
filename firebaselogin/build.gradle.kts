@@ -9,7 +9,7 @@ plugins {
 
 android {
     namespace = "com.uwonham.firebaselogin"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         minSdk = 26
@@ -88,7 +88,7 @@ afterEvaluate {
                 from(components["release"])
                 groupId = "com.t1h2h0"
                 artifactId = "firebaselogin"
-                version = "1.1.57"
+                version = "1.1.56"
 
             }
         }
