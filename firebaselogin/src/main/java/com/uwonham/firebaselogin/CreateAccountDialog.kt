@@ -18,7 +18,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -51,17 +50,17 @@ import androidx.compose.runtime.snapshots.SnapshotStateMap
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.autofill.ContentType
+import androidx.compose.ui.autofill.AutofillNode
+import androidx.compose.ui.autofill.AutofillType
 import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalAutofill
+import androidx.compose.ui.platform.LocalAutofillTree
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
-import androidx.compose.ui.semantics.contentType
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
@@ -81,16 +80,7 @@ private const val TAG = "CreateAccountDialog"
 
 /**
  * Displays a Create Account dialog for Firebase authentication with Firestore integration.
- *
- * Autofill: uses the modern Compose `ContentType` semantics API (Compose UI 1.7+) instead of the
- * old manual `AutofillNode` / `LocalAutofill` wiring — that old API needed each node registered in
- * `LocalAutofillTree`, its bounding box reported via `onGloballyPositioned`, and
- * `requestAutofillForNode` called on focus, none of which was happening before, so autofill never
- * actually fired despite the nodes being declared.
- *
- * Required custom fields: pass [requiredCustomFields] with the keys your [customContent] lambda
- * writes into `customData`. Account creation is blocked (and a message shown) until all of those
- * keys have a non-null, non-blank value.
+ * Fixed version with proper keyboard navigation and scroll behavior.
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalComposeUiApi::class)
 @Composable
@@ -99,7 +89,6 @@ fun CreateAccountDialog(
     image: ImageBitmap?,
     email: String = "",
     allowedEmailDomain: String = "",
-    requiredCustomFields: List<String> = emptyList(),
     onDismiss: () -> Unit,
     onAccountCreated: (user: com.google.firebase.auth.FirebaseUser) -> Unit,
     customContent: @Composable (customData: SnapshotStateMap<String, Any?>) -> Unit = {}
@@ -108,6 +97,8 @@ fun CreateAccountDialog(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val activity = context as? Activity
+    val autofill = LocalAutofill.current
+    val autofillTree = LocalAutofillTree.current
     val density = LocalDensity.current
 
     // Focus and keyboard management
@@ -116,7 +107,7 @@ fun CreateAccountDialog(
     val coroutineScope = rememberCoroutineScope()
     val scrollState = rememberScrollState()
 
-    // Focus requesters for each field (now actually attached below)
+    // Focus requesters for each field
     val emailFocusRequester = remember { FocusRequester() }
     val passwordFocusRequester = remember { FocusRequester() }
     val confirmPasswordFocusRequester = remember { FocusRequester() }
@@ -125,6 +116,7 @@ fun CreateAccountDialog(
     val engineerNumberFocusRequester = remember { FocusRequester() }
     val phoneNumberFocusRequester = remember { FocusRequester() }
     val asmFocusRequester = remember { FocusRequester() }
+    val countiesFocusRequester = remember { FocusRequester() }
 
     // Form state
     var emailValue by remember { mutableStateOf(email) }
@@ -143,10 +135,59 @@ fun CreateAccountDialog(
     var showDomainWarning by remember { mutableStateOf(false) }
     var passwordsMatch by remember { mutableStateOf(true) }
     var countryExpanded by remember { mutableStateOf(false) }
-    var showCustomFieldError by remember { mutableStateOf(false) }
     val customData = remember { mutableStateMapOf<String, Any?>() }
     // Field positions for scrolling - store actual Y coordinates
     var fieldPositions by remember { mutableStateOf(mapOf<String, Float>()) }
+
+    // Autofill nodes
+    val emailAutofillNode = remember {
+        AutofillNode(
+            autofillTypes = listOf(AutofillType.EmailAddress),
+            onFill = { emailValue = it }
+        )
+    }
+    val passwordAutofillNode = remember {
+        AutofillNode(
+            autofillTypes = listOf(AutofillType.NewPassword),
+            onFill = { password = it }
+        )
+    }
+    val firstNameAutofillNode = remember {
+        AutofillNode(
+            autofillTypes = listOf(AutofillType.PersonFirstName),
+            onFill = { firstName = it }
+        )
+    }
+    val lastNameAutofillNode = remember {
+        AutofillNode(
+            autofillTypes = listOf(AutofillType.PersonLastName),
+            onFill = { lastName = it }
+        )
+    }
+    val phoneAutofillNode = remember {
+        AutofillNode(
+            autofillTypes = listOf(AutofillType.PhoneNumber),
+            onFill = { phoneNumber = it }
+        )
+    }
+    val countryAutofillNode = remember {
+        AutofillNode(
+            autofillTypes = listOf(AutofillType.AddressCountry),
+            onFill = { country = it }
+        )
+    }
+    val engineerNumberAutofillNode = remember {
+        AutofillNode(
+            autofillTypes = listOf(AutofillType.Username),
+            onFill = { engineerNumber = it }
+        )
+    }
+    val asmAutofillNode = remember {
+        AutofillNode(
+            autofillTypes = listOf(AutofillType.EmailAddress),
+            onFill = { asm = it }
+        )
+    }
 
     // Country options
     val countries = listOf(
@@ -235,19 +276,6 @@ fun CreateAccountDialog(
         passwordsMatch = password == confirmPassword || confirmPassword.isEmpty()
     }
 
-    // Returns the list of required custom field keys that are still missing/blank
-    fun missingCustomFields(): List<String> {
-        return requiredCustomFields.filter { key ->
-            when (val value = customData[key]) {
-                null -> true
-                is String -> value.isBlank()
-                else -> false
-            }
-        }
-    }
-
-    fun isCustomDataValid(): Boolean = missingCustomFields().isEmpty()
-
     // Validation function
     fun isFormValid(): Boolean {
         return emailValue.isNotBlank() &&
@@ -260,8 +288,7 @@ fun CreateAccountDialog(
                 asm.isNotBlank() &&
                 asm.contains("@") &&
                 passwordsMatch &&
-                !showDomainWarning &&
-                isCustomDataValid()
+                !showDomainWarning
     }
 
     Dialog(
@@ -332,7 +359,6 @@ fun CreateAccountDialog(
                             modifier = Modifier
                                 .menuAnchor()
                                 .fillMaxWidth()
-                                .semantics { contentType = ContentType.AddressCountry }
                         )
 
                         ExposedDropdownMenu(
@@ -374,14 +400,8 @@ fun CreateAccountDialog(
                         keyboardType = KeyboardType.Email,
                         imeAction = ImeAction.Next
                     ),
-                    keyboardActions = KeyboardActions(
-                        onNext = { passwordFocusRequester.requestFocus() }
-                    ),
                     isError = showDomainWarning,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .focusRequester(emailFocusRequester)
-                        .semantics { contentType = ContentType.EmailAddress }
+                    modifier = Modifier.fillMaxWidth()
                 )
 
                 // Domain warning
@@ -407,9 +427,6 @@ fun CreateAccountDialog(
                             keyboardType = KeyboardType.Password,
                             imeAction = ImeAction.Next
                         ),
-                        keyboardActions = KeyboardActions(
-                            onNext = { confirmPasswordFocusRequester.requestFocus() }
-                        ),
                         visualTransformation = if (passwordVisible)
                             VisualTransformation.None
                         else
@@ -426,11 +443,7 @@ fun CreateAccountDialog(
                             }
                         },
                         isError = password.isNotEmpty() && password.length < 6,
-                        modifier = Modifier
-                            .weight(1f)
-                            .focusRequester(passwordFocusRequester)
-                            .semantics { contentType = ContentType.NewPassword }
-                    )
+                        modifier = Modifier.weight(1f)                    )
 
 
 
@@ -443,9 +456,6 @@ fun CreateAccountDialog(
                         keyboardOptions = KeyboardOptions(
                             keyboardType = KeyboardType.Password,
                             imeAction = ImeAction.Next
-                        ),
-                        keyboardActions = KeyboardActions(
-                            onNext = { firstNameFocusRequester.requestFocus() }
                         ),
                         visualTransformation = if (confirmPasswordVisible)
                             VisualTransformation.None
@@ -465,11 +475,7 @@ fun CreateAccountDialog(
                             }
                         },
                         isError = !passwordsMatch,
-                        modifier = Modifier
-                            .weight(1f)
-                            .focusRequester(confirmPasswordFocusRequester)
-                            .semantics { contentType = ContentType.NewPassword }
-                    )
+                        modifier = Modifier.weight(1f)                    )
                 }
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -509,13 +515,7 @@ fun CreateAccountDialog(
                             keyboardType = KeyboardType.Text,
                             imeAction = ImeAction.Next
                         ),
-                        keyboardActions = KeyboardActions(
-                            onNext = { lastNameFocusRequester.requestFocus() }
-                        ),
-                        modifier = Modifier
-                            .weight(1f)
-                            .focusRequester(firstNameFocusRequester)
-                            .semantics { contentType = ContentType.PersonFirstName }
+                        modifier = Modifier.weight(1f)
                     )
 
                     // Last Name Field
@@ -529,19 +529,12 @@ fun CreateAccountDialog(
                             keyboardType = KeyboardType.Text,
                             imeAction = ImeAction.Next
                         ),
-                        keyboardActions = KeyboardActions(
-                            onNext = { engineerNumberFocusRequester.requestFocus() }
-                        ),
-                        modifier = Modifier
-                            .weight(1f)
-                            .focusRequester(lastNameFocusRequester)
-                            .semantics { contentType = ContentType.PersonLastName }
+                        modifier = Modifier.weight(1f)
                     )
                 }
-
-                // Custom fields injected by the caller
-                customContent(customData)
-
+if(customContent != {}){
+                    customContent(customData)
+}
                 // Engineer Number Field
                 OutlinedTextField(
                     value = engineerNumber,
@@ -553,13 +546,7 @@ fun CreateAccountDialog(
                         keyboardType = KeyboardType.Number,
                         imeAction = ImeAction.Next
                     ),
-                    keyboardActions = KeyboardActions(
-                        onNext = { phoneNumberFocusRequester.requestFocus() }
-                    ),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .focusRequester(engineerNumberFocusRequester)
-                        .semantics { contentType = ContentType.Username }
+                    modifier = Modifier.fillMaxWidth()
                 )
 
                 if (engineerNumber.isNotEmpty() && engineerNumber.length < 5) {
@@ -581,13 +568,7 @@ fun CreateAccountDialog(
                         keyboardType = KeyboardType.Phone,
                         imeAction = ImeAction.Next
                     ),
-                    keyboardActions = KeyboardActions(
-                        onNext = { asmFocusRequester.requestFocus() }
-                    ),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .focusRequester(phoneNumberFocusRequester)
-                        .semantics { contentType = ContentType.PhoneNumber }
+                    modifier = Modifier.fillMaxWidth()
                 )
 
                 // ASM Field
@@ -601,28 +582,12 @@ fun CreateAccountDialog(
                         keyboardType = KeyboardType.Email,
                         imeAction = ImeAction.Done
                     ),
-                    keyboardActions = KeyboardActions(
-                        onDone = { keyboardController?.hide() }
-                    ),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .focusRequester(asmFocusRequester)
-                        .semantics { contentType = ContentType.EmailAddress }
+                    modifier = Modifier.fillMaxWidth()
                 )
 
                 if (asm.isNotEmpty() && !asm.contains("@")) {
                     Text(
                         text = "ASM must be a valid email address",
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-
-                // Custom field validation error
-                if (showCustomFieldError && !isCustomDataValid()) {
-                    Text(
-                        text = "Please complete: ${missingCustomFields().joinToString(", ")}",
                         color = MaterialTheme.colorScheme.error,
                         style = MaterialTheme.typography.bodySmall,
                         modifier = Modifier.fillMaxWidth()
@@ -659,7 +624,6 @@ fun CreateAccountDialog(
 
                     Button(
                         onClick = {
-                            showCustomFieldError = true
                             if (isFormValid()) {
                                 keyboardController?.hide()
                                 focusManager.clearFocus()
@@ -667,7 +631,7 @@ fun CreateAccountDialog(
                                 Log.d(TAG, "Creating account for: $emailValue")
 
                                 val userData = UserData(
-                                    uid = "",
+                                    uid = ""  ,
                                     email = emailValue,
                                     password = password,
                                     engineernumber = engineerNumber,
@@ -684,10 +648,10 @@ fun CreateAccountDialog(
 
                                 viewModel.createAccount(userData)
                             } else {
-                                Log.w(TAG, "Form validation failed. Missing custom fields: ${missingCustomFields()}")
+                                Log.w(TAG, "Form validation failed")
                             }
                         },
-                        enabled = !state.isLoading
+                        enabled = !state.isLoading && isFormValid()
                     ) {
                         if (state.isLoading) {
                             CircularProgressIndicator(
@@ -704,9 +668,15 @@ fun CreateAccountDialog(
     }
 }
 
+//@Composable
+//fun customFields(modifier: Modifier = Modifier,customData = customData) {
+//
+//}
+
+
 //@Preview
 //@Composable
 //private fun test() {
 //    val auth = FirebaseAuth.getInstance()
-//    CreateAccountDialog(auth = auth, null, "peter.wonham@beko.com", "beko.com") { }
+//    CreateAccountDialog(auth = auth,null,"peter.wonham@beko.com","beko.com",{}) { }
 //}

@@ -19,7 +19,6 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.filled.Visibility
@@ -45,20 +44,22 @@ import androidx.compose.runtime.snapshots.SnapshotStateMap
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.autofill.AutofillNode
+import androidx.compose.ui.autofill.AutofillType
 import androidx.compose.ui.autofill.ContentType
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.platform.LocalAutofill
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
-import androidx.compose.ui.platform.LocalSoftwareKeyboardController
-import androidx.compose.ui.semantics.contentType
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.semantics.contentType
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -71,18 +72,9 @@ private const val TAG = "FirebaseLoginComposable"
  * Displays a Firebase sign-in dialog with conditional user creation based on email domain.
  * Fixed for edge-to-edge display support.
  *
- * Autofill: both the email and password fields use the modern Compose `ContentType` semantics
- * API (Compose UI 1.7+). The previous approach mixed that with a manual `AutofillNode` /
- * `LocalAutofill` path on the password field that built a brand-new, unregistered `AutofillNode`
- * on every focus change — since it was never added to `LocalAutofillTree`, `requestAutofillForNode`
- * had nothing valid to act on, so it did nothing (and could throw on some devices). That manual
- * path, plus the now-redundant `onGloballyPositioned`/`onFocusChanged` bookkeeping, has been removed.
- *
  * @param auth The Firebase authentication instance.
  * @param image An optional [ImageBitmap] to display in the dialog.
  * @param allowedEmailDomain The email domain required for user creation (e.g., "@company.com").
- * @param requiredCustomFields Keys in `customData` (populated by [customContent]) that must be
- * non-blank before account creation is allowed. Forwarded to [CreateAccountDialog].
  * @param onDismiss Callback function triggered when the dialog is dismissed.
  * @param onSignInSuccess Callback function triggered when sign-in is successful, providing the signed-in [FirebaseUser].
  * @param customContent A composable function to customize the content of the dialog to pass to the account creation .
@@ -130,7 +122,6 @@ fun FirebaseSignInDialog(
     auth: com.google.firebase.auth.FirebaseAuth,
     image: ImageBitmap?,
     allowedEmailDomain: String = "",
-    requiredCustomFields: List<String> = emptyList(),
     onDismiss: () -> Unit,
     onSignInSuccess: (user: com.google.firebase.auth.FirebaseUser) -> Unit,
     customContent: @Composable (customData: SnapshotStateMap<String, Any?>) -> Unit = {}
@@ -138,7 +129,7 @@ fun FirebaseSignInDialog(
     val viewModel: FirebaseLoginViewModel = hiltViewModel()
     val state by viewModel.state.collectAsStateWithLifecycle()
     val focusManager = LocalFocusManager.current
-    val keyboardController = LocalSoftwareKeyboardController.current
+    val autofill = LocalAutofill.current
     val context = LocalContext.current
     val activity = context as? Activity
     val showDomainWarning by remember {
@@ -157,8 +148,9 @@ fun FirebaseSignInDialog(
     // Track email domain validation
     var showCreateDialog = remember { mutableStateOf(false) }
 
-    // Focus requesters to move between fields
-    val passwordFocusRequester = remember { FocusRequester() }
+    // Track if components are positioned for autofill
+    var emailFieldPositioned by remember { mutableStateOf(false) }
+    var passwordFieldPositioned by remember { mutableStateOf(false) }
 
     // Scroll state for handling overflow
     val scrollState = rememberScrollState()
@@ -274,12 +266,7 @@ fun FirebaseSignInDialog(
                                     keyboardType = KeyboardType.Email,
                                     imeAction = ImeAction.Done
                                 ),
-                                keyboardActions = KeyboardActions(
-                                    onDone = { keyboardController?.hide() }
-                                ),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .semantics { contentType = ContentType.EmailAddress }
+                                modifier = Modifier.fillMaxWidth()
                             )
 
                             // Error or Success Message
@@ -330,13 +317,28 @@ fun FirebaseSignInDialog(
                                     keyboardType = KeyboardType.Email,
                                     imeAction = ImeAction.Next
                                 ),
-                                keyboardActions = KeyboardActions(
-                                    onNext = { passwordFocusRequester.requestFocus() }
-                                ),
                                 isError = showDomainWarning && allowedEmailDomain.isNotEmpty(),
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .semantics { contentType = ContentType.EmailAddress }
+
+                                    .onGloballyPositioned {
+                                        emailFieldPositioned = true
+                                    }
+                                    .onFocusChanged { focusState ->
+                                        if (focusState.isFocused && emailFieldPositioned) {
+                                            try {
+                                                autofill?.requestAutofillForNode(
+                                                    AutofillNode(
+                                                        autofillTypes = listOf(AutofillType.EmailAddress),
+                                                        onFill = { viewModel.updateEmail(it) }
+                                                    )
+                                                )
+                                            } catch (e: IllegalStateException) {
+                                                Log.w(TAG, "Autofill request failed: ${e.message}")
+                                            }
+                                        }
+                                    }
                             )
 
                             // Domain warning message and Create Account Button
@@ -369,7 +371,6 @@ fun FirebaseSignInDialog(
                                     image = image,
                                     email = state.email,
                                     allowedEmailDomain = allowedEmailDomain,
-                                    requiredCustomFields = requiredCustomFields,
                                     onDismiss = { showCreateDialog.value = false },
                                     onAccountCreated = { user ->
                                         Toast.makeText(
@@ -395,12 +396,6 @@ fun FirebaseSignInDialog(
                                     keyboardType = KeyboardType.Password,
                                     imeAction = ImeAction.Done
                                 ),
-                                keyboardActions = KeyboardActions(
-                                    onDone = {
-                                        keyboardController?.hide()
-                                        activity?.let { viewModel.signIn(it) }
-                                    }
-                                ),
                                 visualTransformation = if (passwordVisible)
                                     VisualTransformation.None
                                 else
@@ -418,8 +413,23 @@ fun FirebaseSignInDialog(
                                 },
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .focusRequester(passwordFocusRequester)
-                                    .semantics { contentType = ContentType.Password }
+                                    .onGloballyPositioned {
+                                        passwordFieldPositioned = true
+                                    }
+                                    .onFocusChanged { focusState ->
+                                        if (focusState.isFocused && passwordFieldPositioned) {
+                                            try {
+                                                autofill?.requestAutofillForNode(
+                                                    AutofillNode(
+                                                        autofillTypes = listOf(AutofillType.Password),
+                                                        onFill = { viewModel.updatePassword(it) }
+                                                    )
+                                                )
+                                            } catch (e: IllegalStateException) {
+                                                Log.w(TAG, "Autofill request failed: ${e.message}")
+                                            }
+                                        }
+                                    }
                             )
 
                             // Remember me checkbox
