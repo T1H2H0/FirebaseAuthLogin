@@ -9,7 +9,7 @@ plugins {
 
 android {
     namespace = "com.uwonham.firebaselogin"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         minSdk = 26
@@ -28,11 +28,11 @@ android {
         }
     }
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_11
-        targetCompatibility = JavaVersion.VERSION_11
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
     }
     kotlinOptions {
-        jvmTarget = "11"
+        jvmTarget = "17"
     }
     buildFeatures {
         compose =true
@@ -44,30 +44,30 @@ android {
 
 dependencies {
 
-    implementation("androidx.core:core-ktx:1.15.0")
-    implementation("androidx.appcompat:appcompat:1.7.0")
+    implementation("androidx.core:core-ktx:1.17.0")
+    implementation("androidx.appcompat:appcompat:1.7.1")
 
     // Compose dependencies
-    implementation (platform("androidx.compose:compose-bom:2025.03.00"))
+    implementation (platform("androidx.compose:compose-bom:2025.11.01"))
     implementation ("androidx.compose.ui:ui")
     implementation ("androidx.compose.ui:ui-graphics")
     implementation ("androidx.compose.ui:ui-tooling-preview")
     implementation ("androidx.compose.material3:material3")
 
     // For Compose-Lifecycle integration
-    implementation ("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
-    implementation ("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")
-    implementation("androidx.activity:activity-compose:1.10.1")
+    implementation ("androidx.lifecycle:lifecycle-runtime-ktx:2.10.0")
+    implementation ("androidx.lifecycle:lifecycle-viewmodel-compose:2.10.0")
+    implementation("androidx.activity:activity-compose:1.12.0")
 
-    implementation("com.google.firebase:firebase-auth:23.2.0")
+    implementation("com.google.firebase:firebase-auth:24.0.1")
 
-    implementation("com.google.firebase:firebase-firestore:25.1.2")
-
+    implementation("com.google.firebase:firebase-firestore:26.0.2")
+implementation("com.google.firebase:firebase-messaging:25.0.1")
     //hilt
-    implementation("com.google.dagger:hilt-android:2.52")
-    implementation("androidx.hilt:hilt-navigation-compose:1.2.0")
+    implementation("com.google.dagger:hilt-android:2.57.2")
+    implementation("androidx.hilt:hilt-navigation-compose:1.3.0")
 
-    kapt("com.google.dagger:hilt-android-compiler:2.52")
+    kapt("com.google.dagger:hilt-android-compiler:2.57.2")
     //Icons
     implementation ("androidx.compose.material:material-icons-extended:1.7.8")
 
@@ -88,7 +88,8 @@ afterEvaluate {
                 from(components["release"])
                 groupId = "com.t1h2h0"
                 artifactId = "firebaselogin"
-                version = "1.0.4"
+                version = "1.1.64"
+
             }
         }
     }
