@@ -618,22 +618,19 @@ fun CreateAccountDialog(
                     )
                 }
 
-                // Custom field validation error
-                if (requiredCustomFields.isNotEmpty() && !isCustomDataValid()) {
+                // Single unified error slot — server error takes priority, falls back to the
+                // missing-custom-fields message. Same state, same styling, one place on screen.
+                val displayError: String? = state.errorMessage
+                    ?: missingCustomFields()
+                        .takeIf { requiredCustomFields.isNotEmpty() && it.isNotEmpty() }
+                        ?.let { "Please complete: ${it.joinToString(", ")}" }
+
+                if (displayError != null) {
                     Text(
-                        text = "Please complete: ${missingCustomFields().joinToString(", ")}",
+                        text = displayError,
                         color = MaterialTheme.colorScheme.error,
                         style = MaterialTheme.typography.bodySmall,
                         modifier = Modifier.fillMaxWidth()
-                    )
-                }
-
-                // Error Message
-                if (state.errorMessage != null) {
-                    Text(
-                        text = state.errorMessage!!,
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodySmall
                     )
                 }
 
