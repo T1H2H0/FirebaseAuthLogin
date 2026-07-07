@@ -143,7 +143,6 @@ fun CreateAccountDialog(
     var showDomainWarning by remember { mutableStateOf(false) }
     var passwordsMatch by remember { mutableStateOf(true) }
     var countryExpanded by remember { mutableStateOf(false) }
-    var showCustomFieldError by remember { mutableStateOf(false) }
     val customData = remember { mutableStateMapOf<String, Any?>() }
     // Field positions for scrolling - store actual Y coordinates
     var fieldPositions by remember { mutableStateOf(mapOf<String, Float>()) }
@@ -620,7 +619,7 @@ fun CreateAccountDialog(
                 }
 
                 // Custom field validation error
-                if (showCustomFieldError && !isCustomDataValid()) {
+                if (requiredCustomFields.isNotEmpty() && !isCustomDataValid()) {
                     Text(
                         text = "Please complete: ${missingCustomFields().joinToString(", ")}",
                         color = MaterialTheme.colorScheme.error,
@@ -659,7 +658,6 @@ fun CreateAccountDialog(
 
                     Button(
                         onClick = {
-                            showCustomFieldError = true
                             if (isFormValid()) {
                                 keyboardController?.hide()
                                 focusManager.clearFocus()
@@ -690,7 +688,7 @@ fun CreateAccountDialog(
                                 )
                             }
                         },
-                        enabled = !state.isLoading
+                        enabled = !state.isLoading && isFormValid()
                     ) {
                         if (state.isLoading) {
                             CircularProgressIndicator(
