@@ -54,6 +54,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.autofill.ContentType
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
@@ -73,6 +74,7 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Observer
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.uwonham.firebaselogin.utils.EmailValidation
 import com.uwonham.firebaselogin.utils.SignInResult
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -91,6 +93,10 @@ private const val TAG = "CreateAccountDialog"
  * Required custom fields: pass [requiredCustomFields] with the keys your [customContent] lambda
  * writes into `customData`. Account creation is blocked (and a message shown) until all of those
  * keys have a non-null, non-blank value.
+ *
+ * Email: trimmed and lowercased before use. [emailValidator] (default [EmailValidation.default])
+ * blocks employee-number addresses such as 93604552@… or C9939333@…; pass
+ * [EmailValidation.none] to disable.
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalComposeUiApi::class)
 @Composable
@@ -103,11 +109,12 @@ fun CreateAccountDialog(
     onDismiss: () -> Unit,
     onAccountCreated: (user: com.google.firebase.auth.FirebaseUser) -> Unit,
     customContent: @Composable (customData: SnapshotStateMap<String, Any?>) -> Unit = {},
+    emailValidator: (String) -> String? = EmailValidation.default,
 ) {
     val viewModel: FirebaseLoginViewModel = hiltViewModel()
     val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
-    val activity = context as? Activity
+    val activity = context.findActivity()
     val density = LocalDensity.current
 
     // Focus and keyboard management
@@ -127,7 +134,14 @@ fun CreateAccountDialog(
     val asmFocusRequester = remember { FocusRequester() }
 
     // Form state
-    var emailValue by remember { mutableStateOf(email) }
+    var emailValue by remember { mutableStateOf(EmailValidation.normalise(email)) }
+    val normalisedEmail by remember { derivedStateOf { EmailValidation.normalise(emailValue) } }
+    // Only shown once the address has an '@', so it doesn't flash while typing.
+    val emailError by remember(emailValidator) {
+        derivedStateOf {
+            if (normalisedEmail.contains('@')) emailValidator(normalisedEmail) else null
+        }
+    }
     var password by remember { mutableStateOf("") }
     var confirmPassword by remember { mutableStateOf("") }
     var firstName by remember { mutableStateOf("") }
@@ -222,9 +236,10 @@ fun CreateAccountDialog(
     }
 
     // Validation effects
-    LaunchedEffect(emailValue) {
-        if (allowedEmailDomain.isNotEmpty() && emailValue.isNotEmpty()) {
-            showDomainWarning = !emailValue.endsWith(allowedEmailDomain)
+    LaunchedEffect(normalisedEmail) {
+        val domain = allowedEmailDomain.trim().lowercase()
+        if (domain.isNotEmpty() && normalisedEmail.isNotEmpty()) {
+            showDomainWarning = !normalisedEmail.endsWith(domain)
         } else {
             showDomainWarning = false
         }
@@ -249,7 +264,8 @@ fun CreateAccountDialog(
 
     // Validation function
     fun isFormValid(): Boolean {
-        return emailValue.isNotBlank() &&
+        return normalisedEmail.isNotBlank() &&
+                emailError == null &&
                 password.isNotBlank() &&
                 password.length >= 6 &&
                 firstName.isNotBlank() &&
@@ -376,10 +392,12 @@ fun CreateAccountDialog(
                     keyboardActions = KeyboardActions(
                         onNext = { passwordFocusRequester.requestFocus() }
                     ),
-                    isError = showDomainWarning,
+                    isError = showDomainWarning || emailError != null,
+                    supportingText = emailError?.let { error -> { Text(error) } },
                     modifier = Modifier
                         .fillMaxWidth()
                         .focusRequester(emailFocusRequester)
+                        .onFocusChanged { if (!it.isFocused) emailValue = normalisedEmail }
                         .semantics { contentType = ContentType.EmailAddress }
                 )
 
@@ -659,11 +677,11 @@ fun CreateAccountDialog(
                                 keyboardController?.hide()
                                 focusManager.clearFocus()
 
-                                Log.d(TAG, "Creating account for: $emailValue")
+                                Log.d(TAG, "Creating account for: $normalisedEmail")
 
                                 val userData = UserData(
                                     uid = "",
-                                    email = emailValue,
+                                    email = normalisedEmail,
                                     password = password,
                                     engineernumber = engineerNumber,
                                     country = country,

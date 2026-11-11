@@ -13,7 +13,12 @@ import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.google.firebase.FirebaseNetworkException
+import com.google.firebase.FirebaseTooManyRequestsException
 import com.google.firebase.auth.FirebaseAuthException
+import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
+import com.google.firebase.auth.FirebaseAuthInvalidUserException
+import com.uwonham.firebaselogin.utils.EmailValidation
 
 import com.uwonham.firebaselogin.utils.SignInResult
 import com.uwonham.firebaselogin.utils.SignInState
@@ -23,7 +28,10 @@ import com.google.firebase.messaging.FirebaseMessaging
 
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
@@ -56,13 +64,19 @@ data class UserData(
 class FirebaseLoginViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     @Named("AuthPrefs")
-    private val sharedPreferences: SharedPreferences,
-     sampleString: String
+    private val sharedPreferences: SharedPreferences
 ): ViewModel() {
     private val _state = MutableStateFlow(SignInState())
     val state: StateFlow<SignInState> = _state.asStateFlow()
     private val _signInResult = MutableLiveData<SignInResult>()
     val signInResult: LiveData<SignInResult> get() = _signInResult
+
+    /** One-shot sign-in events — each result is delivered once. Used by FirebaseSignInDialog. */
+    private val _signInEvents = Channel<SignInResult>(Channel.BUFFERED)
+    val signInEvents: Flow<SignInResult> = _signInEvents.receiveAsFlow()
+
+    /** Validates emails for account creation. null = OK, otherwise a user-facing message. */
+    private var emailValidator: (String) -> String? = EmailValidation.default
     private val credentialManager = CredentialManager.create(context)
     private val firestore = FirebaseFirestore.getInstance()
 
@@ -73,20 +87,30 @@ class FirebaseLoginViewModel @Inject constructor(
     private val _createAccountResult = MutableLiveData<SignInResult>()
     val createAccountResult: LiveData<SignInResult> get() = _createAccountResult
 
-    init {
-        Log.d(TAG, "init:${sampleString} ")
-    }
-
     fun setAuth(auth: com.google.firebase.auth.FirebaseAuth) {
         Log.d(TAG, "setAuth: ${auth.firebaseAuthSettings}")
         _state.update { it.copy(auth = auth) }
     }
 
     fun setAllowedEmailDomain(domain: String) {
-        allowedEmailDomain = domain
+        allowedEmailDomain = domain.trim().lowercase()
     }
 
-    fun checkAccountExists(email: String) {
+    fun setEmailValidator(validator: (String) -> String?) {
+        emailValidator = validator
+    }
+
+    /** Returns null if [email] may be used to create an account, otherwise the error to show. */
+    fun validateEmailForCreation(email: String): String? =
+        emailValidator(EmailValidation.normalise(email))
+
+    /** Trims/lowercases the email currently in state (e.g. when the field loses focus). */
+    fun normaliseEmail() {
+        _state.update { it.copy(email = EmailValidation.normalise(it.email)) }
+    }
+
+    fun checkAccountExists(rawEmail: String) {
+        val email = EmailValidation.normalise(rawEmail)
         viewModelScope.launch {
             try {
                 // Simply attempt to sign in with a dummy password
@@ -232,12 +256,18 @@ class FirebaseLoginViewModel @Inject constructor(
 
 
     // FIXED: Create account function with proper error handling and validation
-    fun createAccount( userData: UserData) {
+    fun createAccount(rawUserData: UserData) {
+        val userData = rawUserData.copy(email = EmailValidation.normalise(rawUserData.email))
         Log.d(TAG, "createAccount: Starting account creation for ${userData.email}")
 
         // Validate inputs
         if (userData.email.isEmpty()) {
             _createAccountResult.postValue(SignInResult.Error("Email cannot be empty"))
+            return
+        }
+
+        validateEmailForCreation(userData.email)?.let { error ->
+            _createAccountResult.postValue(SignInResult.Error(error))
             return
         }
 
@@ -355,61 +385,72 @@ class FirebaseLoginViewModel @Inject constructor(
     }
 
     fun signIn(activity: Activity) {
-        _state.update { it.copy(isLoading = true, errorMessage = null) }
-        viewModelScope.launch {
-            try {
-                _signInResult.postValue(SignInResult.Loading)
+        // Sign-in is NOT blocked for employee-number emails, so existing accounts still work.
+        val email = EmailValidation.normalise(_state.value.email)
+        val password = _state.value.password
+        val auth = _state.value.auth
 
-                _state.value.auth?.signInWithEmailAndPassword(_state.value.email, _state.value.password)
-                    ?.addOnSuccessListener { authResult ->
-                        _state.update { it.copy(isLoading = false) }
-
-                        // Check if user should be created based on email domain
-                        val user = authResult.user
-                        if (user?.isEmailVerified == false) {
-                            _state.update {
-                                it.copy(
-                                    isLoading = false,
-                                    errorMessage = "User not verified please check your email.\nThis can take up to 10 minutes for you to receive the verification email."
-                                )
-                            }
-                        }
-//                        if (user != null && shouldCreateUser(user.email)) {
-//                            viewModelScope.launch {
-//                                createUserIfNotExists(user)
-//                            }
-//                        }
-else{
-                        if (_state.value.rememberCredentials != false) {
-                            viewModelScope.launch {
-                                saveCredentials(
-                                    activity,
-                                    _state.value.email,
-                                    _state.value.password
-                                )
-                                _signInResult.postValue(SignInResult.Success(user = user))
-                            }
-                        } else {
-                            _signInResult.postValue(SignInResult.Success(user = user))
-                        }
-                    }
-                    }
-                    ?.addOnFailureListener { error ->
-                        _state.update { it.copy(isLoading = false, errorMessage = error.message) }
-                        _signInResult.postValue(SignInResult.Error(error.message ?: "Sign in failed"))
-                    }
-
-            } catch (e: Exception) {
-                _state.update { it.copy(isLoading = false) }
-                _signInResult.postValue(SignInResult.Error(e.message ?: "Unknown error"))
-            }
+        if (auth == null) {
+            val message = "Sign-in is not available. Please try again."
+            _state.update { it.copy(errorMessage = message) }
+            publishSignIn(SignInResult.Error("FirebaseAuth not set"))
+            return
         }
+
+        _state.update { it.copy(email = email, isLoading = true, errorMessage = null) }
+        publishSignIn(SignInResult.Loading)
+
+        auth.signInWithEmailAndPassword(email, password)
+            .addOnSuccessListener { authResult ->
+                val user = authResult.user
+                when {
+                    user == null -> {
+                        val message = "Sign-in failed. Please try again."
+                        _state.update { it.copy(isLoading = false, errorMessage = message) }
+                        publishSignIn(SignInResult.Error(message))
+                    }
+                    !user.isEmailVerified -> {
+                        _state.update {
+                            it.copy(
+                                isLoading = false,
+                                errorMessage = "User not verified please check your email.\nThis can take up to 10 minutes for you to receive the verification email."
+                            )
+                        }
+                    }
+                    else -> viewModelScope.launch {
+                        if (_state.value.rememberCredentials) {
+                            saveCredentials(activity, email, password)
+                        }
+                        _state.update { it.copy(isLoading = false) }
+                        publishSignIn(SignInResult.Success(user = user))
+                    }
+                }
+            }
+            .addOnFailureListener { error ->
+                val message = friendlySignInMessage(error)
+                Log.w(TAG, "signIn failed", error)
+                _state.update { it.copy(isLoading = false, errorMessage = message) }
+                publishSignIn(SignInResult.Error(message, error))
+            }
+    }
+
+    private fun publishSignIn(result: SignInResult) {
+        _signInResult.postValue(result)
+        _signInEvents.trySend(result)
+    }
+
+    private fun friendlySignInMessage(error: Exception): String = when (error) {
+        is FirebaseAuthInvalidUserException,
+        is FirebaseAuthInvalidCredentialsException -> "Incorrect email or password"
+        is FirebaseTooManyRequestsException -> "Too many attempts. Please wait and try again."
+        is FirebaseNetworkException -> "No connection. Check your network and try again."
+        else -> error.message ?: "Sign in failed"
     }
 
     private fun shouldCreateUser(email: String?): Boolean {
         val result = email != null &&
                 allowedEmailDomain.isNotEmpty() &&
-                email.endsWith(allowedEmailDomain)
+                EmailValidation.normalise(email).endsWith(allowedEmailDomain)
         Log.d(TAG, "shouldCreateUser: email=$email, domain=$allowedEmailDomain, result=$result")
         return result
     }
@@ -585,7 +626,7 @@ else{
                 if (credential is androidx.credentials.PasswordCredential) {
                     _state.update {
                         it.copy(
-                            email = credential.id,
+                            email = EmailValidation.normalise(credential.id),
                             password = credential.password,
                             isLoading = false
                         )
@@ -612,10 +653,11 @@ else{
     }
 
     fun sendPasswordResetEmail() {
+        val email = EmailValidation.normalise(_state.value.email)
         // Clear previous error
-        _state.update { it.copy(errorMessage = null, isLoading = true) }
+        _state.update { it.copy(email = email, errorMessage = null, isLoading = true) }
 
-        _state.value.auth?.sendPasswordResetEmail(state.value.email)
+        _state.value.auth?.sendPasswordResetEmail(email)
             ?.addOnCompleteListener { task ->
                 if (task.isSuccessful) {
                     // Password reset email sent successfully

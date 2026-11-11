@@ -1,6 +1,8 @@
 package com.uwonham.firebaselogin
 
 import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
 import android.util.Log
 import android.widget.Toast
 import androidx.compose.foundation.Image
@@ -40,6 +42,7 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshots.SnapshotStateMap
 import androidx.compose.ui.Alignment
@@ -48,6 +51,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.autofill.ContentType
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
@@ -63,6 +67,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.uwonham.firebaselogin.utils.EmailValidation
 import com.uwonham.firebaselogin.utils.SignInResult
 
 private const val TAG = "FirebaseLoginComposable"
@@ -84,7 +89,12 @@ private const val TAG = "FirebaseLoginComposable"
  * @param requiredCustomFields Keys in `customData` (populated by [customContent]) that must be
  * non-blank before account creation is allowed. Forwarded to [CreateAccountDialog].
  * @param onDismiss Callback function triggered when the dialog is dismissed.
- * @param onSignInSuccess Callback function triggered when sign-in is successful, providing the signed-in [FirebaseUser].
+ * @param onSignInSuccess Called once when sign-in succeeds, providing the signed-in [FirebaseUser].
+ * @param onSignInError Optional. Called once per failed sign-in with a user-facing message.
+ * @param emailValidator Optional. Decides which emails may be used to CREATE an account
+ * (sign-in is never blocked, so existing accounts keep working). Returns null if OK, otherwise
+ * the error to show. Defaults to [EmailValidation.default], which rejects employee-number
+ * addresses such as 93604552@… or C9939333@…. Pass [EmailValidation.none] to disable.
  * @param customContent A composable function to customize the content of the dialog to pass to the account creation .
  *
  *
@@ -134,22 +144,31 @@ fun FirebaseSignInDialog(
     onDismiss: () -> Unit,
     onSignInSuccess: (user: com.google.firebase.auth.FirebaseUser) -> Unit,
     customContent: @Composable (customData: SnapshotStateMap<String, Any?>) -> Unit = {},
+    onSignInError: (message: String) -> Unit = {},
+    emailValidator: (String) -> String? = EmailValidation.default,
 ) {
     val viewModel: FirebaseLoginViewModel = hiltViewModel()
     val state by viewModel.state.collectAsStateWithLifecycle()
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
     val context = LocalContext.current
-    val activity = context as? Activity
+    val activity = context.findActivity()
+    val domain = remember(allowedEmailDomain) { allowedEmailDomain.trim().lowercase() }
+    val normalisedEmail by remember { derivedStateOf { EmailValidation.normalise(state.email) } }
+    val matchesDomain by remember(domain) {
+        derivedStateOf { domain.isNotEmpty() && normalisedEmail.endsWith(domain) }
+    }
+    // Only evaluated once the email looks complete (has the domain), so it doesn't flash while typing.
+    val creationEmailError by remember(emailValidator) {
+        derivedStateOf { if (matchesDomain) emailValidator(normalisedEmail) else null }
+    }
     val showDomainWarning by remember {
         derivedStateOf {
-            allowedEmailDomain.isNotEmpty() &&
-                    state.email.isNotEmpty() &&
-                    state.email.endsWith(allowedEmailDomain) &&
-                    !state.accountExists &&
-                    state.email.isNotBlank()
+            matchesDomain && !state.accountExists && creationEmailError == null
         }
     }
+    val currentOnSignInSuccess by rememberUpdatedState(onSignInSuccess)
+    val currentOnSignInError by rememberUpdatedState(onSignInError)
 
     // Track whether forgot password flow is active
     var isForgotPasswordMode by remember { mutableStateOf(false) }
@@ -163,17 +182,24 @@ fun FirebaseSignInDialog(
     // Scroll state for handling overflow
     val scrollState = rememberScrollState()
 
-    LaunchedEffect(true) {
+    LaunchedEffect(auth, allowedEmailDomain, emailValidator) {
         viewModel.setAuth(auth)
         if (allowedEmailDomain.isNotEmpty()) {
             viewModel.setAllowedEmailDomain(allowedEmailDomain)
         }
+        viewModel.setEmailValidator(emailValidator)
+    }
+
+    // One-shot sign-in results, collected only while the dialog is shown. Replaces
+    // observeForever, which was never removed and re-delivered the last Success each time
+    // the dialog was reopened (calling onSignInSuccess again).
+    LaunchedEffect(viewModel) {
         viewModel.checkForSavedCredentials()
-        viewModel.signInResult.observeForever { result ->
+        viewModel.signInEvents.collect { result ->
             when (result) {
-                is SignInResult.Error -> {}
-                SignInResult.Loading -> {}
-                is SignInResult.Success -> onSignInSuccess(result.user!!)
+                is SignInResult.Error -> currentOnSignInError(result.message)
+                SignInResult.Loading -> Unit
+                is SignInResult.Success -> result.user?.let { currentOnSignInSuccess(it) }
             }
         }
     }
@@ -189,11 +215,9 @@ fun FirebaseSignInDialog(
         }
     }
 
-    LaunchedEffect(state.email) {
-        if (allowedEmailDomain.isNotEmpty() &&
-            state.email.isNotEmpty() &&
-            state.email.endsWith(allowedEmailDomain)) {
-            viewModel.checkAccountExists(state.email)
+    LaunchedEffect(normalisedEmail) {
+        if (matchesDomain && creationEmailError == null) {
+            viewModel.checkAccountExists(normalisedEmail)
         }
     }
 
@@ -333,9 +357,14 @@ fun FirebaseSignInDialog(
                                 keyboardActions = KeyboardActions(
                                     onNext = { passwordFocusRequester.requestFocus() }
                                 ),
-                                isError = showDomainWarning && allowedEmailDomain.isNotEmpty(),
+                                isError = (showDomainWarning && allowedEmailDomain.isNotEmpty()) ||
+                                        (creationEmailError != null && !state.accountExists),
+                                supportingText = creationEmailError
+                                    ?.takeIf { !state.accountExists }
+                                    ?.let { error -> { Text(error) } },
                                 modifier = Modifier
                                     .fillMaxWidth()
+                                    .onFocusChanged { if (!it.isFocused) viewModel.normaliseEmail() }
                                     .semantics { contentType = ContentType.EmailAddress }
                             )
 
@@ -367,9 +396,10 @@ fun FirebaseSignInDialog(
                                 CreateAccountDialog(
                                     auth = auth,
                                     image = image,
-                                    email = state.email,
+                                    email = normalisedEmail,
                                     allowedEmailDomain = allowedEmailDomain,
                                     requiredCustomFields = requiredCustomFields,
+                                    emailValidator = emailValidator,
                                     onDismiss = { showCreateDialog.value = false },
                                     onAccountCreated = { user ->
                                         Toast.makeText(
@@ -378,7 +408,7 @@ fun FirebaseSignInDialog(
                                             Toast.LENGTH_LONG
                                         ).show()
                                         showCreateDialog.value = false
-                                        viewModel.checkAccountExists(state.email)
+                                        viewModel.checkAccountExists(normalisedEmail)
                                     },
                                     customContent = customContent
                                 )
@@ -513,4 +543,14 @@ fun FirebaseSignInDialog(
             }
         }
     }
+}
+
+/** Walks ContextWrappers to find the hosting Activity (LocalContext isn't always the Activity). */
+internal fun Context.findActivity(): Activity? {
+    var ctx: Context? = this
+    while (ctx is ContextWrapper) {
+        if (ctx is Activity) return ctx
+        ctx = ctx.baseContext
+    }
+    return null
 }
