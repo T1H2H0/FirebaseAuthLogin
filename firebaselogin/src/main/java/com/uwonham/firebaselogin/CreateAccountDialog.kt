@@ -38,7 +38,6 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -46,6 +45,7 @@ import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshots.SnapshotStateMap
 import androidx.compose.ui.Alignment
@@ -72,7 +72,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.lifecycle.Observer
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.uwonham.firebaselogin.utils.EmailValidation
 import com.uwonham.firebaselogin.utils.SignInResult
@@ -207,31 +206,26 @@ fun CreateAccountDialog(
         }
     }
 
-    // Observe account creation result
-    DisposableEffect(viewModel) {
-        val observer = Observer<SignInResult> { result ->
+    // Account creation results — one-shot events, collected only while this dialog is shown.
+    // (The old LiveData observer was handed the previous Success as soon as the dialog reopened,
+    // which re-ran onAccountCreated and closed the dialog as if the account had been created again.)
+    val currentOnAccountCreated by rememberUpdatedState(onAccountCreated)
+    val currentOnDismiss by rememberUpdatedState(onDismiss)
+    LaunchedEffect(viewModel) {
+        viewModel.clearMessages()
+        viewModel.createAccountEvents.collect { result ->
             Log.d(TAG, "Account creation result: $result")
             when (result) {
-                is SignInResult.Error -> {
-                    Log.e(TAG, "Account creation failed: ${result.message}")
-                }
-                SignInResult.Loading -> {
-                    Log.d(TAG, "Account creation in progress...")
-                }
+                is SignInResult.Error -> Log.e(TAG, "Account creation failed: ${result.message}")
+                SignInResult.Loading -> Log.d(TAG, "Account creation in progress...")
                 is SignInResult.Success -> {
                     Log.d(TAG, "Account created successfully: ${result.user?.email}")
                     result.user?.let { user ->
-                        onAccountCreated(user)
-                        onDismiss()
+                        currentOnAccountCreated(user)
+                        currentOnDismiss()
                     }
                 }
             }
-        }
-
-        viewModel.createAccountResult.observeForever(observer)
-
-        onDispose {
-            viewModel.createAccountResult.removeObserver(observer)
         }
     }
 

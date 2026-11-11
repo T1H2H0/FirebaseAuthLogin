@@ -87,6 +87,13 @@ class FirebaseLoginViewModel @Inject constructor(
     private val _createAccountResult = MutableLiveData<SignInResult>()
     val createAccountResult: LiveData<SignInResult> get() = _createAccountResult
 
+    /** One-shot account-creation events. Used by CreateAccountDialog (LiveData replays the last
+     * Success to every new observer, which re-triggered onAccountCreated on reopen). */
+    private val _createAccountEvents = Channel<SignInResult>(Channel.BUFFERED)
+    val createAccountEvents: Flow<SignInResult> = _createAccountEvents.receiveAsFlow()
+
+    private var creatingAccount = false
+
     fun setAuth(auth: com.google.firebase.auth.FirebaseAuth) {
         Log.d(TAG, "setAuth: ${auth.firebaseAuthSettings}")
         _state.update { it.copy(auth = auth) }
@@ -260,120 +267,122 @@ class FirebaseLoginViewModel @Inject constructor(
         val userData = rawUserData.copy(email = EmailValidation.normalise(rawUserData.email))
         Log.d(TAG, "createAccount: Starting account creation for ${userData.email}")
 
+        // Ignore repeat taps while a creation is already running.
+        if (creatingAccount) {
+            Log.w(TAG, "createAccount: already in progress, ignoring")
+            return
+        }
+
         // Validate inputs
-        if (userData.email.isEmpty()) {
-            _createAccountResult.postValue(SignInResult.Error("Email cannot be empty"))
-            return
-        }
+        if (userData.email.isEmpty()) return failCreate("Email cannot be empty")
+        validateEmailForCreation(userData.email)?.let { return failCreate(it) }
+        if (userData.password.isEmpty()) return failCreate("Password cannot be empty")
+        if (userData.password.length < 6) return failCreate("Password must be at least 6 characters")
+        if (!shouldCreateUser(userData.email)) return failCreate("Email domain not allowed for account creation")
+        val auth = _state.value.auth ?: return failCreate("Firebase Auth not initialized")
 
-        validateEmailForCreation(userData.email)?.let { error ->
-            _createAccountResult.postValue(SignInResult.Error(error))
-            return
-        }
-
-        if (userData.password.isEmpty()) {
-            _createAccountResult.postValue(SignInResult.Error("Password cannot be empty"))
-            return
-        }
-
-        if (userData.password.length < 6) {
-            _createAccountResult.postValue(SignInResult.Error("Password must be at least 6 characters"))
-            return
-        }
-
-        if (!shouldCreateUser(userData.email)) {
-            _createAccountResult.postValue(SignInResult.Error("Email domain not allowed for account creation"))
-            return
-        }
-
-        // Check if auth is initialized
-        if (_state.value.auth == null) {
-            _createAccountResult.postValue(SignInResult.Error("Firebase Auth not initialized"))
-            return
-        }
-
-        _state.update { it.copy(isLoading = true, errorMessage = null) }
-        _createAccountResult.postValue(SignInResult.Loading)
+        creatingAccount = true
+        _state.update { it.copy(isLoading = true, errorMessage = null, infoMessage = null) }
+        publishCreate(SignInResult.Loading)
 
         viewModelScope.launch {
             try {
                 Log.d(TAG, "createAccount: Creating Firebase Auth user")
+                val user = auth.createUserWithEmailAndPassword(userData.email, userData.password)
+                    .await()
+                    .user
+                    ?: return@launch failCreate("Account creation failed - user is null")
 
-                // Create Firebase Auth user with proper await
-                val authResult = _state.value.auth!!.createUserWithEmailAndPassword(
-                    userData.email,
-                    userData.password
-                ).await()
+                Log.d(TAG, "createAccount: Firebase Auth user created successfully")
 
-                val user = authResult.user
-                if (user != null) {
-                    Log.d(TAG, "createAccount: Firebase Auth user created successfully")
-                    sendEmailVerification(user)
-                    // Update display name if provided
-                    if (userData.name.isNotEmpty()) {
-                        val profileUpdates = com.google.firebase.auth.UserProfileChangeRequest.Builder()
-                            .setDisplayName(userData.name)
-                            .setPhotoUri(generateAutoPhoto(userData.email).toUri())
-                            .build()
+                // From here the Auth account exists, so the sign-in screen must treat it as existing
+                // (hides "Create Account") whatever happens with the profile/Firestore steps.
+                _state.update { it.copy(email = userData.email, accountExists = true) }
 
-                        try {
-                            user.updateProfile(profileUpdates).await()
-                            Log.d(TAG, "User profile updated successfully")
+                sendEmailVerification(user)
 
-                        } catch (e: Exception) {
-                            Log.w(TAG, "Failed to update user profile: ${e.message}")
-                            // Don't fail the entire operation for profile update failure
-                        }
-                    }
-
-                    // Create Firestore user document
+                // Update display name if provided
+                if (userData.name.isNotEmpty()) {
+                    val profileUpdates = com.google.firebase.auth.UserProfileChangeRequest.Builder()
+                        .setDisplayName(userData.name)
+                        .setPhotoUri(generateAutoPhoto(userData.email).toUri())
+                        .build()
                     try {
-                        createFirestoreUser(user, userData)
-                        Log.d(TAG, "createAccount: Account creation completed successfully")
-                        _state.update { it.copy(isLoading = false) }
-                        _createAccountResult.postValue(SignInResult.Success(user = user))
+                        user.updateProfile(profileUpdates).await()
+                        Log.d(TAG, "User profile updated successfully")
                     } catch (e: Exception) {
-                        Log.e(TAG, "createAccount: Failed to create Firestore document", e)
-                        _state.update { it.copy(isLoading = false, errorMessage = e.message) }
-                        _createAccountResult.postValue(SignInResult.Error("Account created but profile setup failed: ${e.message}"))
+                        Log.w(TAG, "Failed to update user profile: ${e.message}")
+                        // Don't fail the entire operation for profile update failure
                     }
-                } else {
-                    Log.e(TAG, "createAccount: User is null after creation")
-                    _state.update { it.copy(isLoading = false) }
-                    _createAccountResult.postValue(SignInResult.Error("Account creation failed - user is null"))
                 }
 
+                // Create Firestore user document
+                try {
+                    createFirestoreUser(user, userData)
+                    Log.d(TAG, "createAccount: Account creation completed successfully")
+                    _state.update { it.copy(isLoading = false) }
+                    publishCreate(SignInResult.Success(user = user))
+                } catch (e: Exception) {
+                    Log.e(TAG, "createAccount: Failed to create Firestore document", e)
+                    failCreate("Account created but profile setup failed: ${e.message}")
+                }
             } catch (e: Exception) {
                 Log.e(TAG, "createAccount: Exception during account creation", e)
-                _state.update { it.copy(isLoading = false, errorMessage = e.message) }
-                _createAccountResult.postValue(SignInResult.Error(e.message ?: "Account creation failed"))
+                failCreate(e.message ?: "Account creation failed")
+            } finally {
+                creatingAccount = false
             }
         }
     }
 
-     fun sendEmailVerification(user: FirebaseUser) {
-        if (!user.isEmailVerified) {
-            user.sendEmailVerification()
-                .addOnSuccessListener {
-                    Log.d(TAG, "sendEmailVerification: Verification email sent to ${user.email}")
-                    _state.update {
-                        it.copy(
-                            isLoading = false,
-                            errorMessage ="Verification email sent. Please check your inbox and verify your email address before logging in. This can take up to 10 minutes."
-                        )
-                    }
-                }
-                .addOnFailureListener { e ->
-                    Log.e(TAG, "sendEmailVerification: Failed to send verification email", e)
-                    _state.update { it.copy(isLoading = false, errorMessage = "Failed to send verification email: ${e.message}") }
-                }
-        } else {
+    private fun failCreate(message: String) {
+        _state.update { it.copy(isLoading = false, errorMessage = message) }
+        publishCreate(SignInResult.Error(message))
+    }
+
+    private fun publishCreate(result: SignInResult) {
+        _createAccountResult.postValue(result)
+        _createAccountEvents.trySend(result)
+    }
+
+    /** Clears any error/notice text, e.g. when opening the Create Account dialog. */
+    fun clearMessages() {
+        _state.update { it.copy(errorMessage = null, infoMessage = null) }
+    }
+
+    fun sendEmailVerification(user: FirebaseUser) {
+        if (user.isEmailVerified) {
             Log.d(TAG, "sendEmailVerification: Email already verified for ${user.email}")
+            return
         }
+        // Note: does not touch isLoading — this runs in the middle of account creation, and
+        // clearing isLoading here re-enabled the Create button before creation had finished.
+        user.sendEmailVerification()
+            .addOnSuccessListener {
+                Log.d(TAG, "sendEmailVerification: Verification email sent to ${user.email}")
+                _state.update {
+                    it.copy(
+                        errorMessage = null,
+                        infoMessage = "Verification email sent to ${user.email}. Please verify your " +
+                            "email address before signing in. It can take up to 10 minutes to " +
+                            "arrive — check your junk folder too."
+                    )
+                }
+            }
+            .addOnFailureListener { e ->
+                Log.e(TAG, "sendEmailVerification: Failed to send verification email", e)
+                _state.update {
+                    it.copy(errorMessage = "Failed to send verification email: ${e.message}")
+                }
+            }
     }
 
     fun updateEmail(email: String) {
-        _state.update { it.copy(email = email) }
+        _state.update {
+            // A different address makes any "verification sent" notice stale.
+            val changed = EmailValidation.normalise(email) != EmailValidation.normalise(it.email)
+            it.copy(email = email, infoMessage = if (changed) null else it.infoMessage)
+        }
     }
 
     fun updatePassword(password: String) {
@@ -397,7 +406,7 @@ class FirebaseLoginViewModel @Inject constructor(
             return
         }
 
-        _state.update { it.copy(email = email, isLoading = true, errorMessage = null) }
+        _state.update { it.copy(email = email, isLoading = true, errorMessage = null, infoMessage = null) }
         publishSignIn(SignInResult.Loading)
 
         auth.signInWithEmailAndPassword(email, password)

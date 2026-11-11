@@ -404,11 +404,12 @@ fun FirebaseSignInDialog(
                                     onAccountCreated = { user ->
                                         Toast.makeText(
                                             context,
-                                            "Account created: ${user.displayName} Please verify your email Address. Email Sent",
+                                            "Account created for ${user.email}. Verification email sent.",
                                             Toast.LENGTH_LONG
                                         ).show()
                                         showCreateDialog.value = false
-                                        viewModel.checkAccountExists(normalisedEmail)
+                                        // No checkAccountExists here: the ViewModel already marks the
+                                        // account as existing, and the check cleared the notice.
                                     },
                                     customContent = customContent
                                 )
@@ -476,6 +477,15 @@ fun FirebaseSignInDialog(
                                 TextButton(onClick = { isForgotPasswordMode = true }) {
                                     Text("Forgot Password?")
                                 }
+                            }
+
+                            // Notice (e.g. verification email sent)
+                            state.infoMessage?.let { info ->
+                                Text(
+                                    text = info,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    style = MaterialTheme.typography.bodySmall
+                                )
                             }
 
                             // Error Message

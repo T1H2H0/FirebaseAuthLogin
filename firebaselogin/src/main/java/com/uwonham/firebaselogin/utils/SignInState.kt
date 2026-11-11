@@ -8,6 +8,8 @@ data class SignInState(
     val password: String = "",
     val isLoading: Boolean = false,
     val errorMessage: String? = null,
+    /** Non-error notices, e.g. "Verification email sent". Not cleared by account checks. */
+    val infoMessage: String? = null,
     val useSavedCredentials: Boolean = false,
     val rememberCredentials: Boolean = true,
     val accountExists: Boolean = false
