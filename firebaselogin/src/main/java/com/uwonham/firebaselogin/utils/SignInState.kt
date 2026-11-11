@@ -8,6 +8,7 @@ data class SignInState(
     val password: String = "",
     val isLoading: Boolean = false,
     val errorMessage: String? = null,
+    val emailError: String? = null,
     val useSavedCredentials: Boolean = false,
     val rememberCredentials: Boolean = false
 )

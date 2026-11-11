@@ -15,9 +15,6 @@ import javax.inject.Singleton
 object LibraryModule {
 
     @Provides
-    fun provideSampleString(): String = "Hello from the Library Module!"
-
-    @Provides
     @Singleton
     @Named("AuthPrefs")
     fun provideSharedPreferences(@ApplicationContext context: Context): SharedPreferences {

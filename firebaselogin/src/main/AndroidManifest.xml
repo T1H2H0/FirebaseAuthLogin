@@ -10,6 +10,5 @@
         <!-- Activities, Services, etc. that your library provides -->
         <!-- <activity android:name=".ui.ExampleActivity" /> -->
 
-        <activity android:name="com.uwonham.firebaselogin.Login" />
     </application>
 </manifest>

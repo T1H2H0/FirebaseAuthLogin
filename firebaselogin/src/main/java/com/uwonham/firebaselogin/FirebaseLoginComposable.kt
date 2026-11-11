@@ -1,19 +1,19 @@
 package com.uwonham.firebaselogin
 
 import android.app.Activity
-import android.graphics.Bitmap
+import android.content.Context
+import android.content.ContextWrapper
 import android.util.Log
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Button
@@ -31,6 +31,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
@@ -39,14 +40,10 @@ import androidx.compose.ui.autofill.AutofillNode
 import androidx.compose.ui.autofill.AutofillType
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.painter.BitmapPainter
-import androidx.compose.ui.graphics.painter.Painter
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalAutofill
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -55,15 +52,24 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.FirebaseUser
+import com.uwonham.firebaselogin.utils.EmailValidation
 import com.uwonham.firebaselogin.utils.SignInResult
+
 private const val TAG = "FirebaseLoginComposable"
+
 /**
  * Displays a Firebase sign-in dialog.
  *
  * @param auth The Firebase authentication instance.
  * @param image An optional [ImageBitmap] to display in the dialog.
- * @param onDismiss Callback function triggered when the dialog is dismissed.
- * @param onSignInSuccess Callback function triggered when sign-in is successful, providing the signed-in [FirebaseUser].
+ * @param onDismiss Called when the dialog is dismissed.
+ * @param onSignInSuccess Called once when sign-in succeeds, with the signed-in [FirebaseUser].
+ * @param onSignInError Optional. Called once per failed sign-in attempt with a user-facing message.
+ * @param emailValidator Optional. Returns null if the email is acceptable, or an error message.
+ * Defaults to [EmailValidation.default], which rejects employee-number addresses
+ * (e.g. 93604552@… or C9939333@…). Pass [EmailValidation.none] to disable.
  *
  * ### Example Usage:
  * ```
@@ -85,44 +91,48 @@ private const val TAG = "FirebaseLoginComposable"
  * }
  * ```
  */
-
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun FirebaseSignInDialog(
-    auth: com.google.firebase.auth.FirebaseAuth,
-    image:  ImageBitmap?,
+    auth: FirebaseAuth,
+    image: ImageBitmap?,
     onDismiss: () -> Unit,
-    onSignInSuccess: (user: com.google.firebase.auth.FirebaseUser) -> Unit,
-
+    onSignInSuccess: (user: FirebaseUser) -> Unit,
+    onSignInError: (message: String) -> Unit = {},
+    emailValidator: (String) -> String? = EmailValidation.default,
 ) {
     val viewModel: LoginViewModel = hiltViewModel()
     val state by viewModel.state.collectAsStateWithLifecycle()
-    val focusManager = LocalFocusManager.current
     val autofill = LocalAutofill.current
-    val context = LocalContext.current
-    val activity = context as? Activity
-    // Handle saved credentials prompt
+    val activity = LocalContext.current.findActivity()
 
-    LaunchedEffect(true) {
+    val currentOnSuccess by rememberUpdatedState(onSignInSuccess)
+    val currentOnError by rememberUpdatedState(onSignInError)
+
+    LaunchedEffect(auth, emailValidator) {
         viewModel.setAuth(auth)
-        viewModel.checkForSavedCredentials()
-        viewModel.signInResult.observeForever { result ->
-            when (result) {
-                is SignInResult.Error -> {}
-                SignInResult.Loading -> {
-                }
+        viewModel.setEmailValidator(emailValidator)
+    }
 
-                is SignInResult.Success -> onSignInSuccess(result.user!!)
+    // One-shot results, collected only while the dialog is shown. Replaces observeForever,
+    // which leaked and re-fired the last Success every time the dialog was reopened.
+    LaunchedEffect(viewModel) {
+        viewModel.checkForSavedCredentials()
+        viewModel.events.collect { result ->
+            when (result) {
+                is SignInResult.Success -> result.user?.let { currentOnSuccess(it) }
+                is SignInResult.Error -> currentOnError(result.message)
+                SignInResult.Loading -> Unit
             }
         }
     }
+
     LaunchedEffect(state.useSavedCredentials) {
         if (state.useSavedCredentials) {
-            Log.d(TAG, "SignInDialog: ${state.useSavedCredentials}")
             if (activity != null) {
                 viewModel.loadSavedCredentials(activity)
             } else {
-                Log.e("LoginScreen", "Activity context is null")
+                Log.e(TAG, "No Activity found for Credential Manager")
             }
         }
     }
@@ -151,12 +161,13 @@ fun FirebaseSignInDialog(
                         horizontalArrangement = Arrangement.Start
                     ) {
                         image?.let {
-                        Image(
-                            modifier = Modifier.size(100.dp),
-                            bitmap = it,
-                            contentDescription = "Logo"
-                        )
-                    } }
+                            Image(
+                                modifier = Modifier.size(100.dp),
+                                bitmap = it,
+                                contentDescription = "Logo"
+                            )
+                        }
+                    }
 
                     Text(
                         text = "Sign In",
@@ -164,6 +175,7 @@ fun FirebaseSignInDialog(
                         modifier = Modifier.align(Alignment.Center)
                     )
                 }
+
                 // "Use saved password" option
                 if (state.useSavedCredentials && state.email.isEmpty()) {
                     Button(
@@ -180,19 +192,22 @@ fun FirebaseSignInDialog(
                     )
                 }
 
-                // Email/Username Field with Autofill
+                // Email field with autofill
                 val emailAutofillNode = remember {
                     AutofillNode(
                         autofillTypes = listOf(AutofillType.EmailAddress, AutofillType.Username),
-                        onFill = { viewModel.updateEmail(it) }
+                        onFill = { viewModel.updateEmail(it.trim()) }
                     )
                 }
+                var emailHadFocus by remember { mutableStateOf(false) }
 
                 OutlinedTextField(
                     value = state.email,
                     onValueChange = { viewModel.updateEmail(it) },
                     label = { Text("Email") },
                     singleLine = true,
+                    isError = state.emailError != null,
+                    supportingText = state.emailError?.let { error -> { Text(error) } },
                     keyboardOptions = KeyboardOptions(
                         keyboardType = KeyboardType.Email,
                         imeAction = ImeAction.Next
@@ -200,19 +215,20 @@ fun FirebaseSignInDialog(
                     modifier = Modifier
                         .fillMaxWidth()
                         .onGloballyPositioned { coordinates ->
-                            // Update the autofill node's bounds
                             emailAutofillNode.boundingBox = coordinates.boundsInWindow()
                         }
                         .onFocusChanged { focusState ->
                             if (focusState.isFocused) {
+                                emailHadFocus = true
                                 autofill?.requestAutofillForNode(emailAutofillNode)
                             } else {
                                 autofill?.cancelAutofillForNode(emailAutofillNode)
+                                if (emailHadFocus) viewModel.onEmailFocusLost()
                             }
                         }
                 )
 
-                // Password Field with Autofill
+                // Password field with autofill
                 var passwordVisible by remember { mutableStateOf(false) }
 
                 val passwordAutofillNode = remember {
@@ -239,9 +255,9 @@ fun FirebaseSignInDialog(
                         IconButton(onClick = { passwordVisible = !passwordVisible }) {
                             Icon(
                                 imageVector = if (passwordVisible)
-                                    androidx.compose.material.icons.Icons.Default.Visibility
+                                    Icons.Default.Visibility
                                 else
-                                    androidx.compose.material.icons.Icons.Default.VisibilityOff,
+                                    Icons.Default.VisibilityOff,
                                 contentDescription = if (passwordVisible) "Hide password" else "Show password"
                             )
                         }
@@ -249,7 +265,6 @@ fun FirebaseSignInDialog(
                     modifier = Modifier
                         .fillMaxWidth()
                         .onGloballyPositioned { coordinates ->
-                            // Update the autofill node's bounds
                             passwordAutofillNode.boundingBox = coordinates.boundsInWindow()
                         }
                         .onFocusChanged { focusState ->
@@ -261,16 +276,15 @@ fun FirebaseSignInDialog(
                         }
                 )
 
-                // Remember me checkbox
+                // Remember me
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    var rememberCredentials =
-                        Checkbox(
-                            checked = state.rememberCredentials,
-                            onCheckedChange = { viewModel.setRememberCredentials(it) }
-                        )
+                    Checkbox(
+                        checked = state.rememberCredentials,
+                        onCheckedChange = { viewModel.setRememberCredentials(it) }
+                    )
                     Text(
                         text = "Remember me",
                         style = MaterialTheme.typography.bodyMedium,
@@ -278,9 +292,9 @@ fun FirebaseSignInDialog(
                     )
                 }
 
-                if (state.errorMessage != null) {
+                state.errorMessage?.let { message ->
                     Text(
-                        text = state.errorMessage!!,
+                        text = message,
                         color = MaterialTheme.colorScheme.error,
                         style = MaterialTheme.typography.bodySmall
                     )
@@ -300,11 +314,16 @@ fun FirebaseSignInDialog(
 
                     Button(
                         onClick = {
-activity?.let { viewModel.signIn(it) }
-                            // Here you would check for a successful sign-in before calling onSignInSuccess
-
+                            if (activity != null) {
+                                viewModel.signIn(activity)
+                            } else {
+                                Log.e(TAG, "No Activity found; cannot sign in")
+                            }
                         },
-                        enabled = !state.isLoading && state.email.isNotBlank() && state.password.isNotBlank()
+                        enabled = !state.isLoading &&
+                            state.emailError == null &&
+                            state.email.isNotBlank() &&
+                            state.password.isNotBlank()
                     ) {
                         if (state.isLoading) {
                             CircularProgressIndicator(
@@ -319,4 +338,14 @@ activity?.let { viewModel.signIn(it) }
             }
         }
     }
+}
+
+/** Walks ContextWrappers to find the hosting Activity (LocalContext isn't always the Activity). */
+internal fun Context.findActivity(): Activity? {
+    var ctx: Context? = this
+    while (ctx is ContextWrapper) {
+        if (ctx is Activity) return ctx
+        ctx = ctx.baseContext
+    }
+    return null
 }
