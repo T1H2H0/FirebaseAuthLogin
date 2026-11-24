@@ -12,5 +12,11 @@ data class SignInState(
     val infoMessage: String? = null,
     val useSavedCredentials: Boolean = false,
     val rememberCredentials: Boolean = true,
-    val accountExists: Boolean = false
+    val accountExists: Boolean = false,
+    /**
+     * True only when Firebase said for certain whether [accountExists]. With email enumeration
+     * protection on (the default for projects since 2023) a wrong password and an unknown email
+     * give the same error, so the answer stays unknown and "Create account" stays available.
+     */
+    val accountCheckConclusive: Boolean = false,
 )

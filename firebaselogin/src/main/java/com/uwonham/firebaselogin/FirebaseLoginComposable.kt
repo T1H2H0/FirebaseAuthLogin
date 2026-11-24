@@ -1,5 +1,7 @@
 package com.uwonham.firebaselogin
 
+import androidx.compose.material3.OutlinedButton
+import android.util.Patterns
 import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
@@ -95,6 +97,14 @@ private const val TAG = "FirebaseLoginComposable"
  * (sign-in is never blocked, so existing accounts keep working). Returns null if OK, otherwise
  * the error to show. Defaults to [EmailValidation.default], which rejects employee-number
  * addresses such as 93604552@… or C9939333@…. Pass [EmailValidation.none] to disable.
+ * @param allowAnyEmailDomain Lets any valid email create an account (for apps that vet new users
+ * themselves, e.g. by admin approval). [allowedEmailDomain] is then ignored.
+ * @param userCollection Firestore collection the new user's profile is written to (document id =
+ * email). Pass null if the app creates its own profile.
+ * @param askEngineerDetails Shows the Engineer Number and ASM fields (both required) on Create
+ * Account. Turn off for apps that don't use them.
+ * @param onAccountCreated Called once an account has been created (the user is then signed in,
+ * with a verification email on its way).
  * @param customContent A composable function to customize the content of the dialog to pass to the account creation .
  *
  *
@@ -146,6 +156,10 @@ fun FirebaseSignInDialog(
     customContent: @Composable (customData: SnapshotStateMap<String, Any?>) -> Unit = {},
     onSignInError: (message: String) -> Unit = {},
     emailValidator: (String) -> String? = EmailValidation.default,
+    allowAnyEmailDomain: Boolean = false,
+    userCollection: String? = "Users",
+    askEngineerDetails: Boolean = true,
+    onAccountCreated: (user: com.google.firebase.auth.FirebaseUser) -> Unit = {},
 ) {
     val viewModel: FirebaseLoginViewModel = hiltViewModel()
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -155,18 +169,35 @@ fun FirebaseSignInDialog(
     val activity = context.findActivity()
     val domain = remember(allowedEmailDomain) { allowedEmailDomain.trim().lowercase() }
     val normalisedEmail by remember { derivedStateOf { EmailValidation.normalise(state.email) } }
-    val matchesDomain by remember(domain) {
-        derivedStateOf { domain.isNotEmpty() && normalisedEmail.endsWith(domain) }
+    // Emails this app lets create an account (with any domain: anything that looks like an email).
+    val matchesDomain by remember(domain, allowAnyEmailDomain) {
+        derivedStateOf {
+            if (allowAnyEmailDomain) {
+                Patterns.EMAIL_ADDRESS.matcher(normalisedEmail).matches()
+            } else {
+                domain.isNotEmpty() && normalisedEmail.endsWith(domain)
+            }
+        }
     }
     // Only evaluated once the email looks complete (has the domain), so it doesn't flash while typing.
     val creationEmailError by remember(emailValidator) {
         derivedStateOf { if (matchesDomain) emailValidator(normalisedEmail) else null }
     }
+    // Firebase said for certain there's no account yet: prompt to create one.
     val showDomainWarning by remember {
         derivedStateOf {
-            matchesDomain && !state.accountExists && creationEmailError == null
+            matchesDomain && state.accountCheckConclusive && !state.accountExists &&
+                creationEmailError == null
         }
     }
+    // Not known (email enumeration protection): offer "Create account" alongside Sign In.
+    val showCreateOption by remember {
+        derivedStateOf {
+            matchesDomain && creationEmailError == null && !showDomainWarning &&
+                !(state.accountCheckConclusive && state.accountExists)
+        }
+    }
+    val currentOnAccountCreated by rememberUpdatedState(onAccountCreated)
     val currentOnSignInSuccess by rememberUpdatedState(onSignInSuccess)
     val currentOnSignInError by rememberUpdatedState(onSignInError)
 
@@ -182,11 +213,13 @@ fun FirebaseSignInDialog(
     // Scroll state for handling overflow
     val scrollState = rememberScrollState()
 
-    LaunchedEffect(auth, allowedEmailDomain, emailValidator) {
+    LaunchedEffect(auth, allowedEmailDomain, emailValidator, allowAnyEmailDomain, userCollection) {
         viewModel.setAuth(auth)
         if (allowedEmailDomain.isNotEmpty()) {
             viewModel.setAllowedEmailDomain(allowedEmailDomain)
         }
+        viewModel.setAllowAnyEmailDomain(allowAnyEmailDomain)
+        viewModel.setUserCollection(userCollection)
         viewModel.setEmailValidator(emailValidator)
     }
 
@@ -357,7 +390,7 @@ fun FirebaseSignInDialog(
                                 keyboardActions = KeyboardActions(
                                     onNext = { passwordFocusRequester.requestFocus() }
                                 ),
-                                isError = (showDomainWarning && allowedEmailDomain.isNotEmpty()) ||
+                                isError = (showDomainWarning && allowedEmailDomain.isNotEmpty() && !allowAnyEmailDomain) ||
                                         (creationEmailError != null && !state.accountExists),
                                 supportingText = creationEmailError
                                     ?.takeIf { !state.accountExists }
@@ -369,13 +402,17 @@ fun FirebaseSignInDialog(
                             )
 
                             // Domain warning message and Create Account Button
-                            if (showDomainWarning && allowedEmailDomain.isNotEmpty()) {
+                            if (showDomainWarning) {
                                 Column(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalAlignment = Alignment.CenterHorizontally
                                 ) {
                                     Text(
-                                        text = "Note: First time login with $allowedEmailDomain will require account creation",
+                                        text = if (allowAnyEmailDomain || allowedEmailDomain.isEmpty()) {
+                                            "No account for this email yet — create one first"
+                                        } else {
+                                            "Note: First time login with $allowedEmailDomain will require account creation"
+                                        },
                                         color = MaterialTheme.colorScheme.secondary,
                                         style = MaterialTheme.typography.bodySmall,
                                         modifier = Modifier.fillMaxWidth()
@@ -392,12 +429,24 @@ fun FirebaseSignInDialog(
                                 }
                             }
 
+                            if (showCreateOption) {
+                                OutlinedButton(
+                                    onClick = { showCreateDialog.value = true },
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text("New here? Create Account")
+                                }
+                            }
+
                             if (showCreateDialog.value) {
                                 CreateAccountDialog(
                                     auth = auth,
                                     image = image,
                                     email = normalisedEmail,
-                                    allowedEmailDomain = allowedEmailDomain,
+                                    allowedEmailDomain = if (allowAnyEmailDomain) "" else allowedEmailDomain,
+                                    allowAnyEmailDomain = allowAnyEmailDomain,
+                                    userCollection = userCollection,
+                                    askEngineerDetails = askEngineerDetails,
                                     requiredCustomFields = requiredCustomFields,
                                     emailValidator = emailValidator,
                                     onDismiss = { showCreateDialog.value = false },
@@ -408,6 +457,7 @@ fun FirebaseSignInDialog(
                                             Toast.LENGTH_LONG
                                         ).show()
                                         showCreateDialog.value = false
+                                        currentOnAccountCreated(user)
                                         // No checkAccountExists here: the ViewModel already marks the
                                         // account as existing, and the check cleared the notice.
                                     },

@@ -96,6 +96,10 @@ private const val TAG = "CreateAccountDialog"
  * Email: trimmed and lowercased before use. [emailValidator] (default [EmailValidation.default])
  * blocks employee-number addresses such as 93604552@… or C9939333@…; pass
  * [EmailValidation.none] to disable.
+ *
+ * [allowAnyEmailDomain] lets any valid email create an account; [userCollection] is where the
+ * profile goes (null = the app makes its own); [askEngineerDetails] = false hides the Engineer
+ * Number and ASM fields.
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalComposeUiApi::class)
 @Composable
@@ -109,6 +113,9 @@ fun CreateAccountDialog(
     onAccountCreated: (user: com.google.firebase.auth.FirebaseUser) -> Unit,
     customContent: @Composable (customData: SnapshotStateMap<String, Any?>) -> Unit = {},
     emailValidator: (String) -> String? = EmailValidation.default,
+    allowAnyEmailDomain: Boolean = false,
+    userCollection: String? = "Users",
+    askEngineerDetails: Boolean = true,
 ) {
     val viewModel: FirebaseLoginViewModel = hiltViewModel()
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -204,6 +211,9 @@ fun CreateAccountDialog(
             viewModel.setAllowedEmailDomain(allowedEmailDomain)
             Log.d(TAG, "Set allowed email domain: $allowedEmailDomain")
         }
+        viewModel.setAllowAnyEmailDomain(allowAnyEmailDomain)
+        viewModel.setUserCollection(userCollection)
+        viewModel.setEmailValidator(emailValidator)
     }
 
     // Account creation results — one-shot events, collected only while this dialog is shown.
@@ -232,7 +242,7 @@ fun CreateAccountDialog(
     // Validation effects
     LaunchedEffect(normalisedEmail) {
         val domain = allowedEmailDomain.trim().lowercase()
-        if (domain.isNotEmpty() && normalisedEmail.isNotEmpty()) {
+        if (!allowAnyEmailDomain && domain.isNotEmpty() && normalisedEmail.isNotEmpty()) {
             showDomainWarning = !normalisedEmail.endsWith(domain)
         } else {
             showDomainWarning = false
@@ -264,10 +274,12 @@ fun CreateAccountDialog(
                 password.length >= 6 &&
                 firstName.isNotBlank() &&
                 lastName.isNotBlank() &&
-                engineerNumber.isNotBlank() &&
-                engineerNumber.length >= 5 &&
-                asm.isNotBlank() &&
-                asm.contains("@") &&
+                (!askEngineerDetails || (
+                    engineerNumber.isNotBlank() &&
+                        engineerNumber.length >= 5 &&
+                        asm.isNotBlank() &&
+                        asm.contains("@")
+                    )) &&
                 passwordsMatch &&
                 !showDomainWarning &&
                 isCustomDataValid()
@@ -365,7 +377,7 @@ fun CreateAccountDialog(
                     style = MaterialTheme.typography.bodyMedium
                 )
                 // Domain requirement info
-                if (allowedEmailDomain.isNotEmpty()) {
+                if (allowedEmailDomain.isNotEmpty() || allowAnyEmailDomain) {
                     Text(
                         text = "Account will need to be verified via email",
                         style = MaterialTheme.typography.bodySmall,
@@ -541,7 +553,7 @@ fun CreateAccountDialog(
                             imeAction = ImeAction.Next
                         ),
                         keyboardActions = KeyboardActions(
-                            onNext = { engineerNumberFocusRequester.requestFocus() }
+                            onNext = { if (askEngineerDetails) engineerNumberFocusRequester.requestFocus() else phoneNumberFocusRequester.requestFocus() }
                         ),
                         modifier = Modifier
                             .weight(1f)
@@ -553,33 +565,35 @@ fun CreateAccountDialog(
                 // Custom fields injected by the caller
                 customContent(customData)
 
-                // Engineer Number Field
-                OutlinedTextField(
-                    value = engineerNumber,
-                    onValueChange = { engineerNumber = it },
-                    label = { Text("Engineer Number *") },
-                    singleLine = true,
-                    isError = engineerNumber.isNotEmpty() && engineerNumber.length < 5,
-                    keyboardOptions = KeyboardOptions(
-                        keyboardType = KeyboardType.Number,
-                        imeAction = ImeAction.Next
-                    ),
-                    keyboardActions = KeyboardActions(
-                        onNext = { phoneNumberFocusRequester.requestFocus() }
-                    ),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .focusRequester(engineerNumberFocusRequester)
-                        .semantics { contentType = ContentType.Username }
-                )
-
-                if (engineerNumber.isNotEmpty() && engineerNumber.length < 5) {
-                    Text(
-                        text = "Please Enter a Valid Engineer Number",
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.fillMaxWidth()
+                if (askEngineerDetails) {
+                    // Engineer Number Field
+                    OutlinedTextField(
+                        value = engineerNumber,
+                        onValueChange = { engineerNumber = it },
+                        label = { Text("Engineer Number *") },
+                        singleLine = true,
+                        isError = engineerNumber.isNotEmpty() && engineerNumber.length < 5,
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Number,
+                            imeAction = ImeAction.Next
+                        ),
+                        keyboardActions = KeyboardActions(
+                            onNext = { phoneNumberFocusRequester.requestFocus() }
+                        ),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .focusRequester(engineerNumberFocusRequester)
+                            .semantics { contentType = ContentType.Username }
                     )
+
+                    if (engineerNumber.isNotEmpty() && engineerNumber.length < 5) {
+                        Text(
+                            text = "Please Enter a Valid Engineer Number",
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
                 }
 
                 // Phone Number Field
@@ -590,10 +604,11 @@ fun CreateAccountDialog(
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(
                         keyboardType = KeyboardType.Phone,
-                        imeAction = ImeAction.Next
+                        imeAction = if (askEngineerDetails) ImeAction.Next else ImeAction.Done
                     ),
                     keyboardActions = KeyboardActions(
-                        onNext = { asmFocusRequester.requestFocus() }
+                        onNext = { asmFocusRequester.requestFocus() },
+                        onDone = { keyboardController?.hide() }
                     ),
                     modifier = Modifier
                         .fillMaxWidth()
@@ -601,33 +616,35 @@ fun CreateAccountDialog(
                         .semantics { contentType = ContentType.PhoneNumber }
                 )
 
-                // ASM Field
-                OutlinedTextField(
-                    value = asm,
-                    onValueChange = { asm = it },
-                    label = { Text("ASM's Email Address *") },
-                    singleLine = true,
-                    isError = asm.isNotEmpty() && !asm.contains("@"),
-                    keyboardOptions = KeyboardOptions(
-                        keyboardType = KeyboardType.Email,
-                        imeAction = ImeAction.Done
-                    ),
-                    keyboardActions = KeyboardActions(
-                        onDone = { keyboardController?.hide() }
-                    ),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .focusRequester(asmFocusRequester)
-                        .semantics { contentType = ContentType.EmailAddress }
-                )
-
-                if (asm.isNotEmpty() && !asm.contains("@")) {
-                    Text(
-                        text = "ASM must be a valid email address",
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.fillMaxWidth()
+                if (askEngineerDetails) {
+                    // ASM Field
+                    OutlinedTextField(
+                        value = asm,
+                        onValueChange = { asm = it },
+                        label = { Text("ASM's Email Address *") },
+                        singleLine = true,
+                        isError = asm.isNotEmpty() && !asm.contains("@"),
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Email,
+                            imeAction = ImeAction.Done
+                        ),
+                        keyboardActions = KeyboardActions(
+                            onDone = { keyboardController?.hide() }
+                        ),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .focusRequester(asmFocusRequester)
+                            .semantics { contentType = ContentType.EmailAddress }
                     )
+
+                    if (asm.isNotEmpty() && !asm.contains("@")) {
+                        Text(
+                            text = "ASM must be a valid email address",
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
                 }
 
                 // Single unified error slot — server error takes priority, falls back to the

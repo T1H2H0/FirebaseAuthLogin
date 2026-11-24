@@ -18,6 +18,7 @@ import com.google.firebase.FirebaseTooManyRequestsException
 import com.google.firebase.auth.FirebaseAuthException
 import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
 import com.google.firebase.auth.FirebaseAuthInvalidUserException
+import com.google.firebase.auth.FirebaseAuthUserCollisionException
 import com.uwonham.firebaselogin.utils.EmailValidation
 
 import com.uwonham.firebaselogin.utils.SignInResult
@@ -83,6 +84,12 @@ class FirebaseLoginViewModel @Inject constructor(
     // Add allowed domain property
     private var allowedEmailDomain: String = ""
 
+    /** Any valid email may create an account (the app vets new users itself, e.g. by invite). */
+    private var allowAnyEmailDomain = false
+
+    /** Firestore collection for the new user's profile (document id = email); null = none. */
+    private var userCollection: String? = "Users"
+
     // Add create account result
     private val _createAccountResult = MutableLiveData<SignInResult>()
     val createAccountResult: LiveData<SignInResult> get() = _createAccountResult
@@ -103,6 +110,14 @@ class FirebaseLoginViewModel @Inject constructor(
         allowedEmailDomain = domain.trim().lowercase()
     }
 
+    fun setAllowAnyEmailDomain(allow: Boolean) {
+        allowAnyEmailDomain = allow
+    }
+
+    fun setUserCollection(collection: String?) {
+        userCollection = collection?.takeIf { it.isNotBlank() }
+    }
+
     fun setEmailValidator(validator: (String) -> String?) {
         emailValidator = validator
     }
@@ -116,89 +131,34 @@ class FirebaseLoginViewModel @Inject constructor(
         _state.update { it.copy(email = EmailValidation.normalise(it.email)) }
     }
 
+    /**
+     * Works out whether an account exists for [rawEmail] by trying a dummy password. Only
+     * "user not found" / "wrong password" are conclusive; anything else (including the single
+     * invalid-credential error that email enumeration protection gives for both cases) leaves
+     * it unknown, so the sign-in dialog keeps offering "Create account".
+     */
     fun checkAccountExists(rawEmail: String) {
         val email = EmailValidation.normalise(rawEmail)
+        val auth = _state.value.auth ?: return
         viewModelScope.launch {
-            try {
-                // Simply attempt to sign in with a dummy password
-                _state.value.auth?.signInWithEmailAndPassword(email, "dummyPassword")?.await()
-
-                // If we reach here, somehow the dummy password worked (very unlikely)
-                // Sign out immediately and consider account exists
-                _state.value.auth?.signOut()
-
-                _state.update {
-                    it.copy(
-                        accountExists = false,
-                        isLoading = true,
-                        errorMessage = null
-                    )
-                }
-
+            val (exists, conclusive) = try {
+                auth.signInWithEmailAndPassword(email, "dummyPassword").await()
+                auth.signOut()
+                true to true
             } catch (e: FirebaseAuthException) {
-                // Handle FirebaseAuthException with error codes
                 when (e.errorCode) {
-                    "ERROR_USER_NOT_FOUND" -> {
-                        // Account doesn't exist
-                        Log.d(TAG, "Account does not exist for email: $email")
-                        _state.update {
-                            it.copy(
-                                accountExists = false,
-                                isLoading = false,
-                                errorMessage = null
-                            )
-                        }
-                    }
-                    "ERROR_WRONG_PASSWORD" -> {
-                        _state.update {
-                        it.copy(
-                            accountExists = true,
-                            isLoading = false,
-                            errorMessage = null
-                        )
-                    }}
-                    "ERROR_INVALID_CREDENTIAL" -> {
-                        // Account exists but wrong password (expected)
-                        Log.d(TAG, "Account exists for email: $email")
-                        _state.update {
-                            it.copy(
-                                accountExists = true,
-                                isLoading = false,
-                                errorMessage = null
-                            )
-                        }
-                    }
-                    "ERROR_TOO_MANY_REQUESTS" -> {
-                        // Rate limited - assume account exists to be safe
-                        Log.w(TAG, "Too many requests, assuming account exists")
-                        _state.update {
-                            it.copy(
-                                accountExists = true,
-                                errorMessage = "Too many attempts. Please try again later."
-                            )
-                        }
-                    }
-                    else -> {
-                        // Other errors - assume account doesn't exist
-                        Log.e(TAG, "Unexpected error checking account: ${e.errorCode} - ${e.message}")
-                        _state.update {
-                            it.copy(
-                                accountExists = false,
-                                isLoading = false,
-                                errorMessage = "Unable to verify account: ${e.message}"
-                            )
-                        }
-                    }
+                    "ERROR_USER_NOT_FOUND" -> false to true
+                    "ERROR_WRONG_PASSWORD" -> true to true
+                    else -> false to false
                 }
             } catch (e: Exception) {
-                // Catch any other exceptions
-                Log.e(TAG, "Error checking account existence", e)
-                _state.update {
-                    it.copy(
-                        accountExists = false,
-                        errorMessage = "Error checking account: ${e.message}"
-                    )
-                }
+                Log.w(TAG, "checkAccountExists: could not tell for $email", e)
+                false to false
+            }
+            // Ignore stale answers for an email that has since changed.
+            if (EmailValidation.normalise(_state.value.email) != email) return@launch
+            _state.update {
+                it.copy(accountExists = exists, accountCheckConclusive = conclusive, isLoading = false)
             }
         }
     }
@@ -297,7 +257,9 @@ class FirebaseLoginViewModel @Inject constructor(
 
                 // From here the Auth account exists, so the sign-in screen must treat it as existing
                 // (hides "Create Account") whatever happens with the profile/Firestore steps.
-                _state.update { it.copy(email = userData.email, accountExists = true) }
+                _state.update {
+                    it.copy(email = userData.email, accountExists = true, accountCheckConclusive = true)
+                }
 
                 sendEmailVerification(user)
 
@@ -326,6 +288,15 @@ class FirebaseLoginViewModel @Inject constructor(
                     Log.e(TAG, "createAccount: Failed to create Firestore document", e)
                     failCreate("Account created but profile setup failed: ${e.message}")
                 }
+            } catch (e: FirebaseAuthUserCollisionException) {
+                Log.w(TAG, "createAccount: email already in use", e)
+                _state.update {
+                    it.copy(email = userData.email, accountExists = true, accountCheckConclusive = true)
+                }
+                failCreate(
+                    "An account already exists for ${userData.email}. Sign in, or use " +
+                        "\"Forgot Password?\" to reset it."
+                )
             } catch (e: Exception) {
                 Log.e(TAG, "createAccount: Exception during account creation", e)
                 failCreate(e.message ?: "Account creation failed")
@@ -457,14 +428,20 @@ class FirebaseLoginViewModel @Inject constructor(
     }
 
     private fun shouldCreateUser(email: String?): Boolean {
-        val result = email != null &&
-                allowedEmailDomain.isNotEmpty() &&
-                EmailValidation.normalise(email).endsWith(allowedEmailDomain)
+        val result = email != null && (
+            allowAnyEmailDomain ||
+                (allowedEmailDomain.isNotEmpty() &&
+                    EmailValidation.normalise(email).endsWith(allowedEmailDomain))
+            )
         Log.d(TAG, "shouldCreateUser: email=$email, domain=$allowedEmailDomain, result=$result")
         return result
     }
 
     private suspend fun createFirestoreUser(user: FirebaseUser, userData: UserData) {
+        val collection = userCollection ?: run {
+            Log.d(TAG, "createFirestoreUser: no user collection set, skipping profile document")
+            return
+        }
         try {
             val userEmail = user.email ?: throw Exception("User email is null")
 
@@ -475,7 +452,7 @@ class FirebaseLoginViewModel @Inject constructor(
                 throw Exception("User not authenticated, cannot create Firestore document")
             }
             val fcmToken = getFcmTokenWithAwait()
-            val userDocRef = firestore.collection("Users").document(userEmail)
+            val userDocRef = firestore.collection(collection).document(userEmail)
 
             // Create user document with provided data (excluding password for security)
             val finalUserData = userData.copy(
