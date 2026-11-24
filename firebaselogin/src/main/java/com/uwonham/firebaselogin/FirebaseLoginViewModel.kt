@@ -114,6 +114,13 @@ class FirebaseLoginViewModel @Inject constructor(
         allowAnyEmailDomain = allow
     }
 
+    /** App-supplied "does an account exist?" (e.g. a Cloud Function); null answer = unknown. */
+    private var accountLookup: (suspend (String) -> Boolean?)? = null
+
+    fun setAccountLookup(lookup: (suspend (String) -> Boolean?)?) {
+        accountLookup = lookup
+    }
+
     fun setUserCollection(collection: String?) {
         userCollection = collection?.takeIf { it.isNotBlank() }
     }
@@ -141,7 +148,14 @@ class FirebaseLoginViewModel @Inject constructor(
         val email = EmailValidation.normalise(rawEmail)
         val auth = _state.value.auth ?: return
         viewModelScope.launch {
-            val (exists, conclusive) = try {
+            val lookup = accountLookup
+            val (exists, conclusive) = if (lookup != null) {
+                // The app knows; no dummy sign-in (which also counts as a failed attempt).
+                val answer = runCatching { lookup(email) }
+                    .onFailure { Log.w(TAG, "checkAccountExists: lookup failed for $email", it) }
+                    .getOrNull()
+                (answer == true) to (answer != null)
+            } else try {
                 auth.signInWithEmailAndPassword(email, "dummyPassword").await()
                 auth.signOut()
                 true to true
@@ -352,7 +366,13 @@ class FirebaseLoginViewModel @Inject constructor(
         _state.update {
             // A different address makes any "verification sent" notice stale.
             val changed = EmailValidation.normalise(email) != EmailValidation.normalise(it.email)
-            it.copy(email = email, infoMessage = if (changed) null else it.infoMessage)
+            it.copy(
+                email = email,
+                infoMessage = if (changed) null else it.infoMessage,
+                // The last answer was for another address.
+                accountExists = if (changed) false else it.accountExists,
+                accountCheckConclusive = if (changed) false else it.accountCheckConclusive,
+            )
         }
     }
 

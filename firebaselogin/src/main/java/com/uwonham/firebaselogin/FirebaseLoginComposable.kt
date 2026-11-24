@@ -1,5 +1,6 @@
 package com.uwonham.firebaselogin
 
+import kotlinx.coroutines.delay
 import androidx.compose.material3.OutlinedButton
 import android.util.Patterns
 import android.app.Activity
@@ -105,6 +106,13 @@ private const val TAG = "FirebaseLoginComposable"
  * Account. Turn off for apps that don't use them.
  * @param onAccountCreated Called once an account has been created (the user is then signed in,
  * with a verification email on its way).
+ * @param accountLookup Optional app-supplied check of whether an account exists for an email
+ * (e.g. a Cloud Function using the Admin SDK) — needed for a reliable answer when Firebase's email
+ * enumeration protection is on. Return null when it can't tell.
+ * @param offerCreateWhenUnknown Shows "Create Account" when it isn't known whether the account
+ * exists. Turn off to offer it only once an account is known not to exist.
+ * @param hidePasswordForNewAccounts When there's known to be no account, hides the password /
+ * Sign In part so "Create Account" is the only way on.
  * @param customContent A composable function to customize the content of the dialog to pass to the account creation .
  *
  *
@@ -160,6 +168,9 @@ fun FirebaseSignInDialog(
     userCollection: String? = "Users",
     askEngineerDetails: Boolean = true,
     onAccountCreated: (user: com.google.firebase.auth.FirebaseUser) -> Unit = {},
+    accountLookup: (suspend (email: String) -> Boolean?)? = null,
+    offerCreateWhenUnknown: Boolean = true,
+    hidePasswordForNewAccounts: Boolean = false,
 ) {
     val viewModel: FirebaseLoginViewModel = hiltViewModel()
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -193,8 +204,8 @@ fun FirebaseSignInDialog(
     // Not known (email enumeration protection): offer "Create account" alongside Sign In.
     val showCreateOption by remember {
         derivedStateOf {
-            matchesDomain && creationEmailError == null && !showDomainWarning &&
-                !(state.accountCheckConclusive && state.accountExists)
+            offerCreateWhenUnknown && matchesDomain && creationEmailError == null &&
+                !showDomainWarning && !state.accountCheckConclusive
         }
     }
     val currentOnAccountCreated by rememberUpdatedState(onAccountCreated)
@@ -220,7 +231,12 @@ fun FirebaseSignInDialog(
         }
         viewModel.setAllowAnyEmailDomain(allowAnyEmailDomain)
         viewModel.setUserCollection(userCollection)
+        viewModel.setAccountLookup(accountLookup)
         viewModel.setEmailValidator(emailValidator)
+    }
+    // New address, no account: only "Create Account" is shown.
+    val hideSignInFields by remember(hidePasswordForNewAccounts) {
+        derivedStateOf { hidePasswordForNewAccounts && showDomainWarning }
     }
 
     // One-shot sign-in results, collected only while the dialog is shown. Replaces
@@ -250,6 +266,7 @@ fun FirebaseSignInDialog(
 
     LaunchedEffect(normalisedEmail) {
         if (matchesDomain && creationEmailError == null) {
+            delay(400) // wait for typing to stop; restarts on each change
             viewModel.checkAccountExists(normalisedEmail)
         }
     }
@@ -388,7 +405,7 @@ fun FirebaseSignInDialog(
                                     imeAction = ImeAction.Next
                                 ),
                                 keyboardActions = KeyboardActions(
-                                    onNext = { passwordFocusRequester.requestFocus() }
+                                    onNext = { if (hideSignInFields) focusManager.clearFocus() else passwordFocusRequester.requestFocus() }
                                 ),
                                 isError = (showDomainWarning && allowedEmailDomain.isNotEmpty() && !allowAnyEmailDomain) ||
                                         (creationEmailError != null && !state.accountExists),
@@ -465,67 +482,69 @@ fun FirebaseSignInDialog(
                                 )
                             }
 
-                            // Password Field
-                            var passwordVisible by remember { mutableStateOf(false) }
-                            OutlinedTextField(
-                                value = state.password,
-                                onValueChange = { viewModel.updatePassword(it) },
-                                label = { Text("Password") },
-                                singleLine = true,
-                                keyboardOptions = KeyboardOptions(
-                                    keyboardType = KeyboardType.Password,
-                                    imeAction = ImeAction.Done
-                                ),
-                                keyboardActions = KeyboardActions(
-                                    onDone = {
-                                        keyboardController?.hide()
-                                        activity?.let { viewModel.signIn(it) }
-                                    }
-                                ),
-                                visualTransformation = if (passwordVisible)
-                                    VisualTransformation.None
-                                else
-                                    PasswordVisualTransformation(),
-                                trailingIcon = {
-                                    IconButton(onClick = { passwordVisible = !passwordVisible }) {
-                                        Icon(
-                                            imageVector = if (passwordVisible)
-                                                androidx.compose.material.icons.Icons.Default.Visibility
-                                            else
-                                                androidx.compose.material.icons.Icons.Default.VisibilityOff,
-                                            contentDescription = if (passwordVisible) "Hide password" else "Show password"
-                                        )
-                                    }
-                                },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .focusRequester(passwordFocusRequester)
-                                    .semantics { contentType = ContentType.Password }
-                            )
-
-                            // Remember me checkbox
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Checkbox(
-                                    checked = state.rememberCredentials,
-                                    onCheckedChange = { viewModel.setRememberCredentials(it) }
+                            if (!hideSignInFields) {
+                                // Password Field
+                                var passwordVisible by remember { mutableStateOf(false) }
+                                OutlinedTextField(
+                                    value = state.password,
+                                    onValueChange = { viewModel.updatePassword(it) },
+                                    label = { Text("Password") },
+                                    singleLine = true,
+                                    keyboardOptions = KeyboardOptions(
+                                        keyboardType = KeyboardType.Password,
+                                        imeAction = ImeAction.Done
+                                    ),
+                                    keyboardActions = KeyboardActions(
+                                        onDone = {
+                                            keyboardController?.hide()
+                                            activity?.let { viewModel.signIn(it) }
+                                        }
+                                    ),
+                                    visualTransformation = if (passwordVisible)
+                                        VisualTransformation.None
+                                    else
+                                        PasswordVisualTransformation(),
+                                    trailingIcon = {
+                                        IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                                            Icon(
+                                                imageVector = if (passwordVisible)
+                                                    androidx.compose.material.icons.Icons.Default.Visibility
+                                                else
+                                                    androidx.compose.material.icons.Icons.Default.VisibilityOff,
+                                                contentDescription = if (passwordVisible) "Hide password" else "Show password"
+                                            )
+                                        }
+                                    },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .focusRequester(passwordFocusRequester)
+                                        .semantics { contentType = ContentType.Password }
                                 )
-                                Text(
-                                    text = "Remember me",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    modifier = Modifier.padding(start = 8.dp)
-                                )
-                            }
 
-                            // Forgot Password Link
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.End
-                            ) {
-                                TextButton(onClick = { isForgotPasswordMode = true }) {
-                                    Text("Forgot Password?")
+                                // Remember me checkbox
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Checkbox(
+                                        checked = state.rememberCredentials,
+                                        onCheckedChange = { viewModel.setRememberCredentials(it) }
+                                    )
+                                    Text(
+                                        text = "Remember me",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        modifier = Modifier.padding(start = 8.dp)
+                                    )
+                                }
+
+                                // Forgot Password Link
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.End
+                                ) {
+                                    TextButton(onClick = { isForgotPasswordMode = true }) {
+                                        Text("Forgot Password?")
+                                    }
                                 }
                             }
 
@@ -578,19 +597,21 @@ fun FirebaseSignInDialog(
                                     Text("Cancel")
                                 }
 
-                                Button(
-                                    onClick = {
-                                        activity?.let { viewModel.signIn(it) }
-                                    },
-                                    enabled = !state.isLoading && state.email.isNotBlank() && state.password.isNotBlank()
-                                ) {
-                                    if (state.isLoading) {
-                                        CircularProgressIndicator(
-                                            modifier = Modifier.size(24.dp),
-                                            strokeWidth = 2.dp
-                                        )
-                                    } else {
-                                        Text("Sign In")
+                                if (!hideSignInFields) {
+                                    Button(
+                                        onClick = {
+                                            activity?.let { viewModel.signIn(it) }
+                                        },
+                                        enabled = !state.isLoading && state.email.isNotBlank() && state.password.isNotBlank()
+                                    ) {
+                                        if (state.isLoading) {
+                                            CircularProgressIndicator(
+                                                modifier = Modifier.size(24.dp),
+                                                strokeWidth = 2.dp
+                                            )
+                                        } else {
+                                            Text("Sign In")
+                                        }
                                     }
                                 }
                             }
